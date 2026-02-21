@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Simple2Call CRM</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f4f6f9;
+  margin: 0;
+  padding: 20px;
+}
+
+.header {
+  background: #1f2937;
+  color: white;
+  padding: 15px 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.header h2 {
+  margin: 0 0 10px 0;
+}
+
+.top-config {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.top-config div {
+  display: flex;
+  flex-direction: column;
+}
+
+input {
+  padding: 6px 8px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+.table-container {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+  overflow: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}
+
+th {
+  background: #f9fafb;
+}
+
+button {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.call-btn {
+  background: #16a34a;
+  color: white;
+}
+
+.call-btn:hover {
+  background: #15803d;
+}
+
+.edit-btn {
+  background: #f59e0b;
+  color: white;
+  margin-right: 5px;
+}
+
+.edit-btn:hover {
+  background: #d97706;
+}
+
+.status {
+  margin-top: 15px;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.success { color: green; }
+.error { color: red; }
+
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h2>Simple2Call CRM - Click2Call</h2>
+  <div class="top-config">
+    <div>
+      <label>Agent ID</label>
+      <input type="text" id="agentId" value="sachin_test">
+    </div>
+    <div>
+      <label>CLI (From Number)</label>
+      <input type="text" id="cli" value="918657009654">
+    </div>
+  </div>
+</div>
+
+<div class="table-container">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Customer Name</th>
+        <th>Mobile Number</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="customerTable">
+    </tbody>
+  </table>
+</div>
+
+<div class="status" id="statusMsg"></div>
+
+<script>
+
+const baseUrl = "https://ccs1.simple2call.com/cim/page";
+const tenant = "ccslite";
+const loginkey = "lHCOU3y2Hg41xZv71WMg";
+
+const customers = [
+  {name:"Rohit Sharma", number:"918452080001"},
+  {name:"Amit Patil", number:"918452080002"},
+  {name:"Neha Joshi", number:"918452080003"},
+  {name:"Priya Shah", number:"918452080004"},
+  {name:"Rahul Verma", number:"918452080005"},
+  {name:"Sneha Kulkarni", number:"918452080006"},
+  {name:"Vikas Mehta", number:"918452080007"},
+  {name:"Pooja Singh", number:"918452080008"},
+  {name:"Ankit Jain", number:"918452080009"},
+  {name:"Simran Kaur", number:"918452080010"}
+];
+
+function renderTable() {
+  const tbody = document.getElementById("customerTable");
+  tbody.innerHTML = "";
+
+  customers.forEach((cust, index) => {
+    const row = `
+      <tr>
+        <td>${index + 1}</td>
+        <td><input type="text" value="${cust.name}" id="name_${index}"></td>
+        <td><input type="text" value="${cust.number}" id="number_${index}"></td>
+        <td>
+          <button class="edit-btn" onclick="saveCustomer(${index})">Save</button>
+          <button class="call-btn" onclick="makeCall(${index})">Call</button>
+        </td>
+      </tr>
+    `;
+    tbody.innerHTML += row;
+  });
+}
+
+function saveCustomer(index) {
+  const name = document.getElementById(`name_${index}`).value;
+  const number = document.getElementById(`number_${index}`).value;
+
+  customers[index].name = name;
+  customers[index].number = number;
+
+  document.getElementById("statusMsg").innerHTML = "Customer Updated";
+  document.getElementById("statusMsg").className = "status success";
+}
+
+function makeCall(index) {
+  const agent = document.getElementById("agentId").value.trim();
+  const cli = document.getElementById("cli").value.trim();
+  const customerNumber = customers[index].number;
+
+  if (!agent || !cli || !customerNumber) {
+    document.getElementById("statusMsg").innerHTML = "Missing Agent/CLI/Number";
+    document.getElementById("statusMsg").className = "status error";
+    return;
+  }
+
+  const fullUrl = `${baseUrl}?tenant=${tenant}&script=click2dial&function=call&loginkey=${loginkey}&agent=${encodeURIComponent(agent)}&from=${encodeURIComponent(cli)}&to=${encodeURIComponent(customerNumber)}`;
+
+  const iframe = document.createElement("iframe");
+  iframe.style.display = "none";
+  iframe.src = fullUrl;
+  document.body.appendChild(iframe);
+
+  document.getElementById("statusMsg").innerHTML = `Calling ${customers[index].name} (${customerNumber})`;
+  document.getElementById("statusMsg").className = "status success";
+}
+
+renderTable();
+
+</script>
+
+</body>
+</html>
