@@ -1,23 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>S2C CRM FINAL FIXED</title>
+<title>S2C CRM FINAL WORKING</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 
 <style>
 body{font-family:Arial;background:#f4f6f9;margin:0}
 .navbar{background:#111827;padding:12px;display:flex;gap:20px}
-.navbar button{background:none;color:white;border:none;cursor:pointer}
+.navbar button{background:none;color:white;border:none;cursor:pointer;font-size:14px}
 .section{display:none;padding:20px}
 .active{display:block}
 input,select,textarea{padding:8px;margin:5px 0;width:250px}
 button.primary{background:#2563eb;color:white;border:none;padding:8px 12px;cursor:pointer}
 button.secondary{background:#6b7280;color:white;border:none;padding:6px 10px;cursor:pointer}
 table{border-collapse:collapse;width:100%;background:white}
-th,td{border:1px solid #ddd;padding:8px}
+th,td{border:1px solid #ddd;padding:8px;text-align:left}
 th{background:#e5e7eb}
-.navBox{margin:10px 0;padding:10px;background:white;border-radius:6px}
-.counter{font-weight:bold;margin:0 10px}
+.top-controls{margin-bottom:10px}
 </style>
 </head>
 
@@ -27,6 +26,7 @@ th{background:#e5e7eb}
 <button onclick="showSection('call')">Call</button>
 <button onclick="showSection('settings')">Settings</button>
 <button onclick="showSection('report')">Reports</button>
+<button onclick="loadCustomers()">Refresh</button>
 </div>
 
 <!-- CALL SECTION -->
@@ -35,16 +35,14 @@ th{background:#e5e7eb}
 
 <p><b>Agent:</b> <span id="agentDisplay"></span></p>
 
-<div class="navBox">
-<button onclick="prevLead()">Previous</button>
-<span id="leadCounter" class="counter">0 / 0</span>
-<button onclick="nextLead()">Next</button>
-<button class="secondary" onclick="refreshLeads()">Refresh</button>
-
+<div class="top-controls">
+<button class="secondary" onclick="prevLead()">Previous</button>
+<span id="leadCounter"></span>
+<button class="secondary" onclick="nextLead()">Next</button>
 <br><br>
 Jump to Lead:
-<input type="number" id="jumpInput" style="width:80px">
-<button class="secondary" onclick="jumpToLead()">Go</button>
+<input type="number" id="jumpIndex" style="width:80px">
+<button onclick="jumpToLead()">Go</button>
 </div>
 
 <p id="leadInfo"></p>
@@ -85,7 +83,7 @@ Jump to Lead:
 
 <h3>Upload CSV</h3>
 <input type="file" id="csvFile">
-<button onclick="uploadCSV()">Upload</button><br>
+<button onclick="uploadCSV()">Upload</button><br><br>
 <button onclick="clearCustomers()">Clear All Customers</button>
 </div>
 
@@ -111,7 +109,8 @@ Jump to Lead:
 </div>
 
 <script>
-const supabaseClient=supabase.createClient(
+
+const supabaseClient = supabase.createClient(
 "https://ovqaypngqsreeufizndg.supabase.co",
 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92cWF5cG5ncXNyZWV1Zml6bmRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3MTk5MDksImV4cCI6MjA4NzI5NTkwOX0.oTVCvIqbhE-lUj7t6u-2oqLare6dO3myKH-EJRHFvIM"
 );
@@ -123,18 +122,17 @@ let callStarted=false;
 let currentCallId="";
 let currentCustomer=null;
 
-/* ---------------- NAV ---------------- */
+/* NAV */
 function showSection(id){
 document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
 document.getElementById(id).classList.add("active");
 if(id==="report") loadReports();
 }
 
-/* ---------------- SETTINGS ---------------- */
-
+/* SETTINGS */
 async function saveAgent(){
-let val=document.getElementById("agentInput").value;
-if(!val){alert("Enter Agent");return;}
+let val=document.getElementById("agentInput").value.trim();
+if(!val) return alert("Enter Agent");
 await supabaseClient.from("agent_settings").insert([{agent_id:val}]);
 alert("Agent Saved");
 loadAgent();
@@ -150,8 +148,8 @@ document.getElementById("agentDisplay").innerText=agentId;
 }
 
 async function addCLI(){
-let cli=document.getElementById("newCli").value;
-if(!cli){alert("Enter CLI");return;}
+let cli=document.getElementById("newCli").value.trim();
+if(!cli) return alert("Enter CLI");
 await supabaseClient.from("cli_settings").insert([{cli}]);
 alert("CLI Added");
 loadCLI();
@@ -168,16 +166,17 @@ async function loadCLI(){
 const {data}=await supabaseClient.from("cli_settings").select("*");
 let drop=document.getElementById("cliDropdown");
 let del=document.getElementById("cliDelete");
-drop.innerHTML=""; del.innerHTML="";
-(data||[]).forEach(r=>{
-drop.innerHTML+=`<option>${r.cli}</option>`;
-del.innerHTML+=`<option>${r.cli}</option>`;
+drop.innerHTML="";
+del.innerHTML="";
+data?.forEach(r=>{
+drop.innerHTML+=`<option value="${r.cli}">${r.cli}</option>`;
+del.innerHTML+=`<option value="${r.cli}">${r.cli}</option>`;
 });
 }
 
 async function addDisposition(){
-let val=document.getElementById("newDisp").value;
-if(!val){alert("Enter Disposition");return;}
+let val=document.getElementById("newDisp").value.trim();
+if(!val) return alert("Enter Disposition");
 await supabaseClient.from("dispositions").insert([{name:val}]);
 alert("Disposition Added");
 loadDisposition();
@@ -194,113 +193,125 @@ async function loadDisposition(){
 const {data}=await supabaseClient.from("dispositions").select("*");
 let drop=document.getElementById("dispositionDropdown");
 let del=document.getElementById("dispDelete");
-drop.innerHTML=""; del.innerHTML="";
-(data||[]).forEach(r=>{
-drop.innerHTML+=`<option>${r.name}</option>`;
-del.innerHTML+=`<option>${r.name}</option>`;
+drop.innerHTML="";
+del.innerHTML="";
+data?.forEach(r=>{
+drop.innerHTML+=`<option value="${r.name}">${r.name}</option>`;
+del.innerHTML+=`<option value="${r.name}">${r.name}</option>`;
 });
 }
 
-/* ---------------- CUSTOMERS ---------------- */
-
+/* CSV UPLOAD */
 async function uploadCSV(){
 const file=document.getElementById("csvFile").files[0];
-if(!file){alert("Select File");return;}
+if(!file) return alert("Select File");
 const text=await file.text();
 const rows=text.split("\n").slice(1);
-let count=0;
 for(let row of rows){
 let cols=row.split(",");
 if(cols.length>=2){
-await supabaseClient.from("customers")
-.insert([{name:cols[0].trim(),number:cols[1].trim()}]);
-count++;
+await supabaseClient.from("customers").insert([{
+name:cols[0].trim(),
+number:cols[1].trim(),
+attempts:0
+}]);
 }
 }
-alert(count+" Customers Uploaded");
+alert("Customers Uploaded");
 loadCustomers();
 }
 
 async function clearCustomers(){
-if(!confirm("Delete All Customers?"))return;
-await supabaseClient.from("customers").delete().not("id","is",null);
-alert("Customers Deleted");
+if(!confirm("Delete All Customers?")) return;
+await supabaseClient.from("customers").delete().neq("id",0);
+alert("Customers Cleared");
 loadCustomers();
 }
 
+/* CUSTOMERS */
 async function loadCustomers(){
-const {data}=await supabaseClient.from("customers")
-.select("*")
-.order("id",{ascending:true});
-
-customers=data||[];
+const {data}=await supabaseClient.from("customers").select("*");
+customers=data || [];
 currentIndex=0;
 showLead();
 }
 
 function showLead(){
 if(!customers.length){
-document.getElementById("leadInfo").innerText="No Leads Available";
-updateCounter();
+document.getElementById("leadInfo").innerText="No Leads";
 return;
 }
 currentCustomer=customers[currentIndex];
-document.getElementById("leadInfo").innerText=
-`Name: ${currentCustomer.name} | Number: ${currentCustomer.number} | Attempts: ${currentCustomer.attempts}`;
-loadHistory();
-updateCounter();
-}
-
-function updateCounter(){
 document.getElementById("leadCounter").innerText=
-(customers.length?currentIndex+1:0)+" / "+customers.length;
+`${currentIndex+1} / ${customers.length}`;
+
+document.getElementById("leadInfo").innerText=
+`Name: ${currentCustomer.name} | Number: ${currentCustomer.number} | Attempts: ${currentCustomer.attempts || 0}`;
+
+loadHistory();
 }
 
 function nextLead(){
-if(currentIndex<customers.length-1){
+if(currentIndex < customers.length-1){
 currentIndex++;
 showLead();
 }
 }
 
 function prevLead(){
-if(currentIndex>0){
+if(currentIndex > 0){
 currentIndex--;
 showLead();
 }
 }
 
-function refreshLeads(){
-loadCustomers();
-}
-
 function jumpToLead(){
-let num=parseInt(document.getElementById("jumpInput").value);
-if(!num || num<1 || num>customers.length){
-alert("Invalid Lead Number");
-return;
-}
-currentIndex=num-1;
+let index=parseInt(document.getElementById("jumpIndex").value)-1;
+if(index>=0 && index<customers.length){
+currentIndex=index;
 showLead();
 }
+}
 
-/* ---------------- CALL ---------------- */
-
+/* CALL */
 async function createCall(){
-if(!currentCustomer){alert("No Lead");return;}
+
+if(!currentCustomer){
+alert("No Lead");
+return;
+}
+
+if(!agentId){
+alert("Please Set Agent in Settings");
+return;
+}
+
+let cli=document.getElementById("cliDropdown").value;
+if(!cli){
+alert("Please Select CLI");
+return;
+}
+
 callStarted=true;
 currentCallId="CALL-"+Date.now();
+
 document.getElementById("callId").innerText=currentCallId;
 document.getElementById("callTime").innerText=new Date().toLocaleString();
 
-let cli=document.getElementById("cliDropdown").value;
-const apiURL=`https://ccs1.simple2call.com/cim/page?tenant=ccslite&script=click2dial&function=call&loginkey=lHCOU3y2Hg41xZv71WMg&agent=${agentId}&from=${cli}&to=${currentCustomer.number}`;
-fetch(apiURL).catch(()=>{});
+/* ✅ FIXED SIMPLE2CALL URL */
+const apiURL = `https://ccs1.simple2call.com/cim/page?tenant=ccslite&script=click2dial&function=call&loginkey=lHCOU3y2Hg41xZv71WMg&agent=${agentId}&from=${cli}&to=${currentCustomer.number}`;
+
+console.log("Dial URL:", apiURL);
+
+/* Using image call to avoid CORS issue */
+const img = new Image();
+img.src = apiURL;
+
 alert("Call Initiated");
 }
 
 async function saveCall(){
-if(!callStarted){alert("Initiate Call First");return;}
+if(!callStarted) return alert("Initiate Call First");
 
 await supabaseClient.from("call_logs").insert([{
 customer_id:currentCustomer.id,
@@ -314,7 +325,7 @@ status:"completed"
 }]);
 
 await supabaseClient.from("customers")
-.update({attempts:currentCustomer.attempts+1})
+.update({attempts:(currentCustomer.attempts||0)+1})
 .eq("id",currentCustomer.id);
 
 alert("Call Saved");
@@ -322,10 +333,8 @@ callStarted=false;
 loadCustomers();
 }
 
-/* ---------------- HISTORY ---------------- */
-
+/* HISTORY */
 async function loadHistory(){
-if(!currentCustomer) return;
 const {data}=await supabaseClient
 .from("call_logs")
 .select("*")
@@ -334,60 +343,62 @@ const {data}=await supabaseClient
 
 let div=document.getElementById("history");
 div.innerHTML="";
-(data||[]).forEach(r=>{
+data?.forEach(r=>{
 div.innerHTML+=`<p>${r.call_time} | ${r.disposition} | ${r.notes}</p>`;
 });
 }
 
-/* ---------------- REPORT ---------------- */
-
+/* REPORT */
 async function loadReports(){
 const {data,count}=await supabaseClient
 .from("call_logs")
-.select("call_id,disposition,call_time,customers(name,number,attempts)",{count:"exact"});
+.select("*, customers(name,number,attempts)",{count:"exact"});
 
-document.getElementById("reportTotal").innerText="Total Calls: "+count;
+document.getElementById("reportTotal").innerText=
+"Total Calls: "+(count||0);
 
 let table=document.getElementById("reportTable");
 table.innerHTML="";
-(data||[]).forEach(r=>{
+data?.forEach(r=>{
 table.innerHTML+=`
 <tr>
-<td>${r.customers?.name||""}</td>
-<td>${r.customers?.number||""}</td>
-<td>${r.customers?.attempts||0}</td>
-<td>${r.call_id||""}</td>
-<td>${r.disposition||""}</td>
-<td>${r.call_time||""}</td>
+<td>${r.customers?.name || ""}</td>
+<td>${r.customers?.number || ""}</td>
+<td>${r.customers?.attempts || 0}</td>
+<td>${r.call_id}</td>
+<td>${r.disposition}</td>
+<td>${r.call_time}</td>
 </tr>`;
 });
 }
 
+/* CSV DOWNLOAD FIXED FORMAT */
 async function downloadCSV(){
 const {data}=await supabaseClient
 .from("call_logs")
-.select("call_id,disposition,call_time,customers(name,number,attempts)");
+.select("*, customers(name,number,attempts)");
 
 let csv="Name,Number,Attempts,Call ID,Disposition,Time\n";
 
-(data||[]).forEach(r=>{
-csv+=`"${r.customers?.name||""}","${r.customers?.number||""}",${r.customers?.attempts||0},"${r.call_id||""}","${r.disposition||""}","${r.call_time||""}"\n`;
+data?.forEach(r=>{
+csv+=`"${r.customers?.name || ""}","${r.customers?.number || ""}","${r.customers?.attempts || 0}","${r.call_id}","${r.disposition}","${r.call_time}"\n`;
 });
 
-const blob=new Blob([csv],{type:"text/csv"});
+const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
 const link=document.createElement("a");
 link.href=URL.createObjectURL(blob);
 link.download="report.csv";
 link.click();
 }
 
+/* INIT */
 window.onload=function(){
 loadAgent();
 loadCLI();
 loadDisposition();
 loadCustomers();
-}
-</script>
+};
 
+</script>
 </body>
 </html>
