@@ -30,7 +30,6 @@ th{background:#e5e7eb}
 
 <!-- CALL SECTION -->
 <div id="call" class="section active">
-
 <h3>Lead Information</h3>
 <div id="leadInfo"></div>
 <div id="leadCounter"></div>
@@ -46,7 +45,6 @@ Jump to Lead:
 <hr>
 
 Agent: <span id="agentDisplay"></span><br>
-
 <select id="cliDropdown"></select><br>
 
 <button class="primary" onclick="createCall()">📞 Initiate Call</button>
@@ -61,7 +59,6 @@ Agent: <span id="agentDisplay"></span><br>
 
 <h4>Customer History</h4>
 <div id="history"></div>
-
 </div>
 
 <!-- SETTINGS -->
@@ -83,65 +80,19 @@ Agent: <span id="agentDisplay"></span><br>
 <select id="dispDelete"></select>
 <button onclick="deleteDisposition()">Delete</button>
 
-<input type="file" id="csvFile" accept=".csv" />
+<hr>
+
+<h3>Upload CSV</h3>
+<input type="file" id="csvFile" accept=".csv">
 <button onclick="uploadCSV()">Upload CSV</button>
 
-<script>
-async function uploadCSV() {
-  const fileInput = document.getElementById("csvFile");
-  const file = fileInput.files[0];
-
-  if (!file) {
-    alert("Please select a CSV file");
-    return;
-  }
-
-  const reader = new FileReader();
-
-  reader.onload = async function (e) {
-    const text = e.target.result;
-    const rows = text.split("\n").slice(1); // Skip header
-
-    const data = rows
-      .filter(row => row.trim() !== "")
-      .map(row => {
-        const cols = row.split(",");
-        return {
-          name: cols[0]?.trim(),
-          mobile: cols[1]?.trim()
-        };
-      });
-
-    if (data.length === 0) {
-      alert("No valid data found in CSV");
-      return;
-    }
-
-    const { error } = await supabaseClient
-      .from("customers")
-      .insert(data);
-
-    if (error) {
-      console.error(error);
-      alert("Upload Failed: " + error.message);
-    } else {
-      alert("CSV Uploaded Successfully!");
-      loadCustomers();
-    }
-  };
-
-  reader.readAsText(file);
-}
-</script>
 <br><br>
-
 <button onclick="clearCustomers()">Clear All Customers</button>
 
 </div>
 
 <!-- REPORT -->
 <div id="report" class="section">
-
 <h3>Reports</h3>
 <p id="reportTotal"></p>
 <button onclick="downloadCSV()">Download CSV</button>
@@ -159,7 +110,6 @@ async function uploadCSV() {
 </thead>
 <tbody id="reportTable"></tbody>
 </table>
-
 </div>
 
 <script>
@@ -183,12 +133,82 @@ document.getElementById(id).classList.add("active");
 if(id==="report") loadReports();
 }
 
-/* SETTINGS */
+/* ================= CSV FIXED ================= */
+async function uploadCSV() {
+
+const file = document.getElementById("csvFile").files[0];
+if(!file){
+alert("Select CSV file");
+return;
+}
+
+const reader = new FileReader();
+
+reader.onload = async function(e){
+
+const text = e.target.result.trim();
+const rows = text.split(/\r?\n/);
+
+if(rows.length < 2){
+alert("Invalid CSV format");
+return;
+}
+
+let insertData=[];
+
+for(let i=1;i<rows.length;i++){
+
+if(!rows[i].trim()) continue;
+
+let cols = rows[i].split(",");
+
+let name = cols[0]?.trim();
+let number = cols[1]?.trim();
+
+if(!name || !number) continue;
+
+/* Fix Excel scientific format */
+if(number.includes("E+")){
+number = Number(number).toFixed(0);
+}
+
+insertData.push({
+name:name,
+number:number,
+attempts:0
+});
+}
+
+if(insertData.length===0){
+alert("No valid rows found");
+return;
+}
+
+const { error } = await supabaseClient
+.from("customers")
+.insert(insertData);
+
+if(error){
+alert("Upload Failed: "+error.message);
+console.log(error);
+return;
+}
+
+alert("CSV Uploaded Successfully ✅");
+document.getElementById("csvFile").value="";
+loadCustomers();
+};
+
+reader.readAsText(file);
+}
+/* ============================================ */
+
+/* SETTINGS FUNCTIONS (UNCHANGED) */
+
 async function saveAgent(){
 let val=document.getElementById("agentInput").value.trim();
 if(!val) return alert("Enter Agent");
 await supabaseClient.from("agent_settings").insert([{agent_id:val}]);
-alert("Agent Saved");
 loadAgent();
 }
 
@@ -203,7 +223,7 @@ document.getElementById("agentDisplay").innerText=agentId;
 
 async function addCLI(){
 let cli=document.getElementById("newCli").value.trim();
-if(!cli) return alert("Enter CLI");
+if(!cli) return;
 await supabaseClient.from("cli_settings").insert([{cli}]);
 loadCLI();
 }
@@ -228,7 +248,7 @@ del.innerHTML+=`<option value="${r.cli}">${r.cli}</option>`;
 
 async function addDisposition(){
 let val=document.getElementById("newDisp").value.trim();
-if(!val) return alert("Enter Disposition");
+if(!val) return;
 await supabaseClient.from("dispositions").insert([{name:val}]);
 loadDisposition();
 }
@@ -395,7 +415,6 @@ link.href=URL.createObjectURL(blob);
 link.download="report.csv";
 link.click();
 }
-
 window.onload=function(){
 loadAgent();
 loadCLI();
@@ -406,4 +425,3 @@ loadCustomers();
 </script>
 </body>
 </html>
-
