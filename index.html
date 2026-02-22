@@ -83,9 +83,56 @@ Agent: <span id="agentDisplay"></span><br>
 <select id="dispDelete"></select>
 <button onclick="deleteDisposition()">Delete</button>
 
-<h3>Upload CSV</h3>
-<input type="file" id="csvFile">
-<button onclick="uploadCSV()">Upload</button>
+<input type="file" id="csvFile" accept=".csv" />
+<button onclick="uploadCSV()">Upload CSV</button>
+
+<script>
+async function uploadCSV() {
+  const fileInput = document.getElementById("csvFile");
+  const file = fileInput.files[0];
+
+  if (!file) {
+    alert("Please select a CSV file");
+    return;
+  }
+
+  const reader = new FileReader();
+
+  reader.onload = async function (e) {
+    const text = e.target.result;
+    const rows = text.split("\n").slice(1); // Skip header
+
+    const data = rows
+      .filter(row => row.trim() !== "")
+      .map(row => {
+        const cols = row.split(",");
+        return {
+          name: cols[0]?.trim(),
+          mobile: cols[1]?.trim()
+        };
+      });
+
+    if (data.length === 0) {
+      alert("No valid data found in CSV");
+      return;
+    }
+
+    const { error } = await supabaseClient
+      .from("customers")
+      .insert(data);
+
+    if (error) {
+      console.error(error);
+      alert("Upload Failed: " + error.message);
+    } else {
+      alert("CSV Uploaded Successfully!");
+      loadCustomers();
+    }
+  };
+
+  reader.readAsText(file);
+}
+</script>
 <br><br>
 
 <button onclick="clearCustomers()">Clear All Customers</button>
@@ -359,3 +406,4 @@ loadCustomers();
 </script>
 </body>
 </html>
+
