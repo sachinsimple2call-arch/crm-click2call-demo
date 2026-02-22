@@ -67,11 +67,10 @@ Select CLI:
 <button onclick="clearData()">Clear Data</button>
 </div>
 
-<script>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 const supabase = window.supabase.createClient(
 "https://ovqaypngqsreeufizndg.supabase.co",
-"YOUR_PUBLIC_ANON_KEY"
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92cWF5cG5ncXNyZWV1Zml6bmRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3MTk5MDksImV4cCI6MjA4NzI5NTkwOX0.oTVCvIqbhE-lUj7t6u-2oqLare6dO3myKH-EJRHFvIM"
 );
 
 const baseUrl="https://ccs1.simple2call.com/cim/page";
@@ -243,3 +242,4 @@ await loadCustomers();
 </script>
 </body>
 </html>
+
