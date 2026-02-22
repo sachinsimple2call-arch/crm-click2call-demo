@@ -1,256 +1,214 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Simple2Call CRM</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<style>
-body { font-family: Arial; background:#f4f6f9; padding:20px; }
-.section { background:#fff; padding:15px; margin-bottom:20px; border-radius:8px; }
-table { width:100%; border-collapse:collapse; }
-th,td { border:1px solid #ddd; padding:8px; }
-th { background:#eee; }
-button { padding:6px 10px; cursor:pointer; }
-input,select { padding:5px; margin:5px 0; }
-</style>
+  <title>S2C Mini CRM</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <style>
+    body { font-family: Arial; background:#f4f6f9; margin:0; }
+    .navbar { background:#1f2937; padding:10px; display:flex; gap:20px; }
+    .navbar button { background:none; color:white; border:none; cursor:pointer; font-size:16px; }
+    .section { display:none; padding:20px; }
+    .active { display:block; }
+    input, select, textarea { padding:8px; margin:5px 0; width:250px; }
+    button.primary { background:#2563eb; color:white; border:none; padding:8px 12px; cursor:pointer; }
+    table { border-collapse: collapse; width:100%; background:white; }
+    th, td { border:1px solid #ddd; padding:8px; }
+    th { background:#e5e7eb; }
+  </style>
 </head>
 <body>
 
-<h2>Simple2Call CRM - Click2Call</h2>
-
-<div class="section">
-<h3>Settings</h3>
-
-Agent:
-<input type="text" id="agentId" value="sachin_test">
-
-<h4>Add CLI</h4>
-<input type="text" id="cliInput">
-<button onclick="saveCLI()">Save CLI</button>
-
-<h4>Upload CSV (Name,Number)</h4>
-<input type="file" id="csvFile">
-<button onclick="uploadCSV()">Upload</button>
-<span id="uploadCount"></span>
-
-<br><br>
-<button onclick="clearData()">Clear All Data</button>
-
+<div class="navbar">
+  <button onclick="showSection('callSection')">Call</button>
+  <button onclick="showSection('settingsSection')">Settings</button>
+  <button onclick="showSection('reportSection')">Reports</button>
 </div>
 
-<div class="section">
-<h3>Call Section</h3>
+<!-- CALL SECTION -->
+<div id="callSection" class="section active">
+  <h2>Create Call</h2>
 
-Select CLI:
-<select id="cliDropdown"></select>
+  <input id="customerName" placeholder="Customer Name"><br>
+  <input id="customerNumber" placeholder="Customer Number"><br>
 
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>Number</th>
-<th>Call</th>
-<th>Attempts</th>
-<th>Disposition</th>
-</tr>
-</thead>
-<tbody id="customerTable"></tbody>
-</table>
+  <select id="cliDropdown"></select><br>
 
+  <button class="primary" onclick="createCall()">Initiate Call</button>
+
+  <h3>Call Details</h3>
+  <p><b>Call ID:</b> <span id="callId"></span></p>
+  <p><b>Time:</b> <span id="callTime"></span></p>
+  <p><b>Attempts:</b> <span id="attemptCount">0</span></p>
+
+  <select id="dispositionDropdown"></select><br>
+  <textarea id="notes" placeholder="Notes"></textarea><br>
+  <button class="primary" onclick="saveCallLog()">Save Call Log</button>
 </div>
 
-<div class="section">
-<h3>Report</h3>
-<div id="reportSummary"></div>
-<button onclick="downloadReport()">Download CSV</button>
+<!-- SETTINGS SECTION -->
+<div id="settingsSection" class="section">
+  <h2>Settings</h2>
+
+  <h3>Manage CLI</h3>
+  <input id="newCli" placeholder="Add CLI">
+  <button onclick="addCLI()">Add</button>
+  <button onclick="deleteCLI()">Delete Selected</button>
+
+  <h3>Manage Disposition</h3>
+  <input id="newDisposition" placeholder="Add Disposition">
+  <button onclick="addDisposition()">Add</button>
+  <button onclick="deleteDisposition()">Delete Selected</button>
+</div>
+
+<!-- REPORT SECTION -->
+<div id="reportSection" class="section">
+  <h2>Reports</h2>
+  <button class="primary" onclick="downloadCSV()">Download CSV</button>
+  <br><br>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Number</th>
+        <th>Attempts</th>
+        <th>Call Time</th>
+        <th>Call ID</th>
+        <th>Disposition</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody id="reportTable"></tbody>
+  </table>
 </div>
 
 <script>
-
-const supabaseClient = window.supabase.createClient(
+const supabaseClient = supabase.createClient(
   "https://ovqaypngqsreeufizndg.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92cWF5cG5ncXNyZWV1Zml6bmRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3MTk5MDksImV4cCI6MjA4NzI5NTkwOX0.oTVCvIqbhE-lUj7t6u-2oqLare6dO3myKH-EJRHFvIM"
 );
 
-const baseUrl="https://ccs1.simple2call.com/cim/page";
-const tenant="ccslite";
-const loginkey="lHCOU3y2Hg41xZv71WMg";
+let currentCallId = "";
+let attemptCounter = 0;
 
-window.onload = async function(){
-  await loadCLI();
-  await loadCustomers();
-};
+function showSection(id){
+  document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  if(id === "reportSection") loadReports();
+}
 
-async function saveCLI(){
-  let agent = agentId.value;
-  let cli = cliInput.value.trim();
-  if(!cli) return alert("Enter CLI");
+function generateCallId(){
+  return "CALL-" + Date.now();
+}
 
-  await supabaseClient.from("settings").insert({agent_id:agent, cli});
-  cliInput.value="";
-  alert("Saved to DB");
-  await loadCLI();
+function createCall(){
+  currentCallId = generateCallId();
+  attemptCounter++;
+  document.getElementById("callId").innerText = currentCallId;
+  document.getElementById("callTime").innerText = new Date().toLocaleString();
+  document.getElementById("attemptCount").innerText = attemptCounter;
+}
+
+async function saveCallLog(){
+  const data = {
+    name: document.getElementById("customerName").value,
+    number: document.getElementById("customerNumber").value,
+    attempts: attemptCounter,
+    call_time: document.getElementById("callTime").innerText,
+    call_id: currentCallId,
+    disposition: document.getElementById("dispositionDropdown").value,
+    notes: document.getElementById("notes").value
+  };
+
+  const { error } = await supabaseClient.from("call_logs").insert([data]);
+  if(error) alert("Error saving");
+  else alert("Call log saved");
+}
+
+async function addCLI(){
+  const cli = document.getElementById("newCli").value;
+  await supabaseClient.from("cli_settings").insert([{cli}]);
+  loadCLI();
+}
+
+async function deleteCLI(){
+  const cli = document.getElementById("cliDropdown").value;
+  await supabaseClient.from("cli_settings").delete().eq("cli", cli);
+  loadCLI();
 }
 
 async function loadCLI(){
-  let agent = agentId.value;
-
-  const { data } = await supabaseClient
-    .from("settings")
-    .select("cli")
-    .eq("agent_id",agent);
-
-  cliDropdown.innerHTML="";
-  data?.forEach(row=>{
-    if(row.cli){
-      let opt=document.createElement("option");
-      opt.value=row.cli;
-      opt.textContent=row.cli;
-      cliDropdown.appendChild(opt);
-    }
+  const { data } = await supabaseClient.from("cli_settings").select("*");
+  const dropdown = document.getElementById("cliDropdown");
+  dropdown.innerHTML="";
+  data.forEach(row=>{
+    const option = document.createElement("option");
+    option.value=row.cli;
+    option.text=row.cli;
+    dropdown.appendChild(option);
   });
 }
 
-async function uploadCSV(){
-  let agent=agentId.value;
-  let file=csvFile.files[0];
-  if(!file) return alert("Select CSV file");
-
-  let text=await file.text();
-  let rows=text.split("\n");
-  let count=0;
-
-  for(let i=1;i<rows.length;i++){
-    let cols=rows[i].split(",");
-    if(cols.length>=2){
-      await supabaseClient.from("customers").insert({
-        agent_id:agent,
-        name:cols[0].trim(),
-        number:cols[1].trim()
-      });
-      count++;
-    }
-  }
-
-  uploadCount.innerText="Uploaded: "+count;
-  await loadCustomers();
+async function addDisposition(){
+  const name = document.getElementById("newDisposition").value;
+  await supabaseClient.from("dispositions").insert([{name}]);
+  loadDisposition();
 }
 
-async function loadCustomers(){
-  let agent=agentId.value;
-
-  const { data } = await supabaseClient
-    .from("customers")
-    .select("*")
-    .eq("agent_id",agent);
-
-  customerTable.innerHTML="";
-
-  for(let cust of data || []){
-
-    const { count } = await supabaseClient
-      .from("calls")
-      .select("*",{count:"exact",head:true})
-      .eq("customer_id",cust.id);
-
-    let row=document.createElement("tr");
-
-    row.innerHTML=`
-    <td>${cust.name}</td>
-    <td>${cust.number}</td>
-    <td><button onclick="makeCall('${cust.id}','${cust.number}',${count||0})">Call</button></td>
-    <td>${count||0}</td>
-    <td>
-      <input id="disp_${cust.id}">
-      <button onclick="saveDisposition('${cust.id}')">Save</button>
-    </td>
-    `;
-
-    customerTable.appendChild(row);
-  }
-
-  updateReport();
+async function deleteDisposition(){
+  const name = document.getElementById("dispositionDropdown").value;
+  await supabaseClient.from("dispositions").delete().eq("name", name);
+  loadDisposition();
 }
 
-async function makeCall(custId,number,attempt){
-  let agent=agentId.value;
-  let cli=cliDropdown.value;
-
-  let url=`${baseUrl}?tenant=${tenant}&script=click2dial&function=call&loginkey=${loginkey}&agent=${agent}&from=${cli}&to=${number}`;
-
-  let iframe=document.createElement("iframe");
-  iframe.style.display="none";
-  iframe.src=url;
-  document.body.appendChild(iframe);
-
-  let callId="CALL"+Date.now();
-
-  await supabaseClient.from("calls").insert({
-    customer_id:custId,
-    agent_id:agent,
-    attempt:attempt+1,
-    call_time:new Date(),
-    call_id:callId
+async function loadDisposition(){
+  const { data } = await supabaseClient.from("dispositions").select("*");
+  const dropdown = document.getElementById("dispositionDropdown");
+  dropdown.innerHTML="";
+  data.forEach(row=>{
+    const option = document.createElement("option");
+    option.value=row.name;
+    option.text=row.name;
+    dropdown.appendChild(option);
   });
-
-  await loadCustomers();
 }
 
-async function saveDisposition(custId){
-  let disp=document.getElementById("disp_"+custId).value;
-
-  await supabaseClient
-    .from("calls")
-    .update({disposition:disp})
-    .eq("customer_id",custId);
-
-  alert("Disposition Saved");
-}
-
-async function updateReport(){
-  let agent=agentId.value;
-  const { data } = await supabaseClient
-    .from("calls")
-    .select("*")
-    .eq("agent_id",agent);
-
-  reportSummary.innerHTML="Total Calls: "+(data?.length || 0);
-}
-
-async function downloadReport(){
-  let agent=agentId.value;
-
-  const { data } = await supabaseClient
-    .from("calls")
-    .select("*")
-    .eq("agent_id",agent);
-
-  let csv="CustomerID,Attempt,CallID,Disposition\n";
-  data?.forEach(c=>{
-    csv+=`${c.customer_id},${c.attempt},${c.call_id},${c.disposition||""}\n`;
+async function loadReports(){
+  const { data } = await supabaseClient.from("call_logs").select("*");
+  const table = document.getElementById("reportTable");
+  table.innerHTML="";
+  data.forEach(row=>{
+    table.innerHTML += `
+      <tr>
+        <td>${row.name}</td>
+        <td>${row.number}</td>
+        <td>${row.attempts}</td>
+        <td>${row.call_time}</td>
+        <td>${row.call_id}</td>
+        <td>${row.disposition}</td>
+        <td>${row.notes}</td>
+      </tr>`;
   });
+}
 
-  let blob=new Blob([csv],{type:"text/csv"});
-  let url=URL.createObjectURL(blob);
-  let a=document.createElement("a");
+async function downloadCSV(){
+  const { data } = await supabaseClient.from("call_logs").select("*");
+  let csv="Name,Number,Attempts,Call Time,Call ID,Disposition,Notes\n";
+  data.forEach(r=>{
+    csv+=`${r.name},${r.number},${r.attempts},${r.call_time},${r.call_id},${r.disposition},${r.notes}\n`;
+  });
+  const blob = new Blob([csv], {type:"text/csv"});
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
   a.href=url;
   a.download="report.csv";
   a.click();
 }
 
-async function clearData(){
-  let agent=agentId.value;
-
-  await supabaseClient.from("customers").delete().eq("agent_id",agent);
-  await supabaseClient.from("calls").delete().eq("agent_id",agent);
-
-  alert("All Data Cleared");
-  await loadCustomers();
-}
-
+window.onload = function(){
+  loadCLI();
+  loadDisposition();
+};
 </script>
+
 </body>
 </html>
