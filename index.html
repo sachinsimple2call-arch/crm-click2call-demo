@@ -1,17 +1,36 @@
-<!DOCTYPE html>
-<html>
-<head>
-<title>Test</title>
-</head>
 <body>
 
-<button onclick="test()">Click</button>
+<!-- Your HTML -->
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-function test(){
-  alert("JS Working");
+
+const supabase = window.supabase.createClient(
+  "YOUR_URL",
+  "YOUR_KEY"
+);
+
+async function uploadCSV(){
+  alert("upload working");
 }
+
+async function saveCLI(){
+  alert("cli working");
+}
+
+async function saveDisposition(){
+  alert("disp working");
+}
+
+async function downloadReport(){
+  alert("download working");
+}
+
+async function clearData(){
+  alert("clear working");
+}
+
 </script>
 
 </body>
-</html>
