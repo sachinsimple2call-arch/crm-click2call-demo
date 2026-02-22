@@ -1,453 +1,241 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>S2C CRM FINAL WORKING</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+<meta charset="UTF-8">
+<title>S2C CRM FINAL STABLE</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body{font-family:Arial;background:#f4f6f9;margin:0}
-.navbar{background:#111827;padding:12px;display:flex;gap:20px}
-.navbar button{background:none;color:white;border:none;cursor:pointer;font-size:14px}
+body{font-family:Arial;margin:0;background:#f4f6f9}
+.navbar{background:#111827;padding:12px;color:white;display:flex;gap:15px}
+.navbar button{background:#2563eb;border:none;color:white;padding:6px 12px;cursor:pointer;border-radius:4px}
 .section{display:none;padding:20px}
 .active{display:block}
-input,select,textarea{padding:8px;margin:5px 0;width:250px}
-button.primary{background:#2563eb;color:white;border:none;padding:8px 12px;cursor:pointer}
-button.secondary{background:#6b7280;color:white;border:none;padding:6px 10px;cursor:pointer}
-table{border-collapse:collapse;width:100%;background:white}
-th,td{border:1px solid #ddd;padding:8px;text-align:left}
-th{background:#e5e7eb}
-.top-controls{margin-bottom:10px}
+input,select{padding:6px;margin:5px 0;width:100%}
+button.primary{background:#2563eb;color:white;border:none;padding:8px 12px;margin-top:10px;cursor:pointer;border-radius:4px}
+.card{background:white;padding:15px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.1)}
+.topbar{margin-bottom:10px;display:flex;gap:10px;align-items:center}
 </style>
 </head>
-
 <body>
 
 <div class="navbar">
-<button onclick="showSection('call')">Call</button>
+<button onclick="showSection('crm')">CRM</button>
 <button onclick="showSection('settings')">Settings</button>
-<button onclick="showSection('report')">Reports</button>
-<button onclick="loadCustomers()">Refresh</button>
+<button onclick="showSection('upload')">Upload CSV</button>
 </div>
 
-<!-- CALL SECTION -->
-<div id="call" class="section active">
+<!-- CRM SECTION -->
+<div id="crm" class="section active">
+<div class="card">
 
-<div class="crm-grid">
-
-<!-- LEFT PANEL -->
-<div class="crm-card">
-
-<h3>Lead Information</h3>
-
-<div class="lead-box">
-<div id="leadInfo" class="lead-text"></div>
-<div class="lead-counter" id="leadCounter"></div>
+<div class="topbar">
+<button onclick="prevLead()">Previous</button>
+<span id="leadCounter">0 / 0</span>
+<button onclick="nextLead()">Next</button>
+<button onclick="refreshLead()">Refresh</button>
 </div>
 
-<div class="lead-nav">
-<button class="secondary" onclick="prevLead()">◀ Previous</button>
-<button class="secondary" onclick="nextLead()">Next ▶</button>
-</div>
-
-<div class="jump-box">
-<input type="number" id="jumpIndex" placeholder="Lead #" />
+<div>
+Jump to Lead:
+<input type="number" id="jumpNumber" style="width:80px">
 <button onclick="jumpToLead()">Go</button>
 </div>
 
-</div>
+<h3 id="customerName">Name</h3>
+<p id="customerNumber">Number</p>
 
-<!-- RIGHT PANEL -->
-<div class="crm-card">
+<select id="disposition">
+<option value="">Select Disposition</option>
+<option>Interested</option>
+<option>Not Interested</option>
+<option>Callback</option>
+<option>Wrong Number</option>
+<option>Not Connected</option>
+</select>
 
-<h3>Call Controls</h3>
-
-<div class="agent-display">
-Agent: <span id="agentDisplay"></span>
-</div>
-
-<label>CLI</label>
-<select id="cliDropdown"></select>
-
-<button class="primary big-btn" onclick="createCall()">📞 Initiate Call</button>
-
-<div class="call-meta">
-<p><b>Call ID:</b> <span id="callId"></span></p>
-<p><b>Time:</b> <span id="callTime"></span></p>
-</div>
-
-<label>Disposition</label>
-<select id="dispositionDropdown"></select>
-
-<label>Notes</label>
-<textarea id="notes" placeholder="Enter call notes..."></textarea>
-
-<button class="primary save-btn" onclick="saveCall()">💾 Save Call</button>
-
-<h4>Customer History</h4>
-<div id="history" class="history-box"></div>
-
-</div>
+<button class="primary" onclick="makeCall()">Call</button>
+<button class="primary" onclick="saveAndNext()">Save & Next</button>
+<button class="primary" onclick="saveAndStop()">Save & Stop</button>
 
 </div>
 </div>
 
 <!-- SETTINGS -->
 <div id="settings" class="section">
-<h2>Settings</h2>
+<div class="card">
+<h3>Settings</h3>
 
-<h3>Agent</h3>
-<input id="agentInput">
-<button onclick="saveAgent()">Save</button>
+<label>Agent</label>
+<input id="agent">
 
-<h3>CLI</h3>
-<input id="newCli">
-<button onclick="addCLI()">Add</button><br>
-<select id="cliDelete"></select>
-<button onclick="deleteCLI()">Delete</button>
+<label>CLI</label>
+<input id="cli">
 
-<h3>Disposition</h3>
-<input id="newDisp">
-<button onclick="addDisposition()">Add</button><br>
-<select id="dispDelete"></select>
-<button onclick="deleteDisposition()">Delete</button>
+<label>Loginkey</label>
+<input id="loginkey">
 
-<h3>Upload CSV</h3>
-<input type="file" id="csvFile">
-<button onclick="uploadCSV()">Upload</button><br><br>
-<button onclick="clearCustomers()">Clear All Customers</button>
+<button class="primary" onclick="saveSettings()">Save Settings</button>
+<button class="primary" onclick="clearCustomers()">Clear Customers</button>
+
+</div>
 </div>
 
-<!-- REPORT -->
-<div id="report" class="section">
-<h2>Reports</h2>
-<p id="reportTotal"></p>
-<button onclick="downloadCSV()">Download CSV</button>
-
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>Number</th>
-<th>Attempts</th>
-<th>Call ID</th>
-<th>Disposition</th>
-<th>Time</th>
-</tr>
-</thead>
-<tbody id="reportTable"></tbody>
-</table>
+<!-- UPLOAD -->
+<div id="upload" class="section">
+<div class="card">
+<h3>Upload CSV</h3>
+<input type="file" id="csvFile">
+<button class="primary" onclick="uploadCSV()">Upload</button>
+<button class="primary" onclick="downloadCSV()">Download CSV</button>
+</div>
 </div>
 
 <script>
 
-const supabaseClient = supabase.createClient(
+// ================= SUPABASE =================
+const supabase = window.supabase.createClient(
 "https://ovqaypngqsreeufizndg.supabase.co",
 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92cWF5cG5ncXNyZWV1Zml6bmRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3MTk5MDksImV4cCI6MjA4NzI5NTkwOX0.oTVCvIqbhE-lUj7t6u-2oqLare6dO3myKH-EJRHFvIM"
 );
 
-let customers=[];
-let currentIndex=0;
-let agentId="";
-let callStarted=false;
-let currentCallId="";
-let currentCustomer=null;
+let leads = [];
+let currentIndex = 0;
 
-/* NAV */
+// ================= UI =================
 function showSection(id){
-document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
-document.getElementById(id).classList.add("active");
-if(id==="report") loadReports();
+document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+document.getElementById(id).classList.add('active');
 }
 
-/* SETTINGS */
-async function saveAgent(){
-let val=document.getElementById("agentInput").value.trim();
-if(!val) return alert("Enter Agent");
-await supabaseClient.from("agent_settings").insert([{agent_id:val}]);
-alert("Agent Saved");
-loadAgent();
+// ================= SETTINGS =================
+function saveSettings(){
+localStorage.setItem("agent",document.getElementById("agent").value);
+localStorage.setItem("cli",document.getElementById("cli").value);
+localStorage.setItem("loginkey",document.getElementById("loginkey").value);
+alert("Settings Saved");
 }
 
-async function loadAgent(){
-const {data}=await supabaseClient.from("agent_settings")
-.select("*").order("created_at",{ascending:false}).limit(1);
-if(data && data.length){
-agentId=data[0].agent_id;
-document.getElementById("agentDisplay").innerText=agentId;
-}
+function loadSettings(){
+document.getElementById("agent").value=localStorage.getItem("agent")||"";
+document.getElementById("cli").value=localStorage.getItem("cli")||"";
+document.getElementById("loginkey").value=localStorage.getItem("loginkey")||"";
 }
 
-async function addCLI(){
-let cli=document.getElementById("newCli").value.trim();
-if(!cli) return alert("Enter CLI");
-await supabaseClient.from("cli_settings").insert([{cli}]);
-alert("CLI Added");
-loadCLI();
-}
-
-async function deleteCLI(){
-let cli=document.getElementById("cliDelete").value;
-await supabaseClient.from("cli_settings").delete().eq("cli",cli);
-alert("CLI Deleted");
-loadCLI();
-}
-
-async function loadCLI(){
-const {data}=await supabaseClient.from("cli_settings").select("*");
-let drop=document.getElementById("cliDropdown");
-let del=document.getElementById("cliDelete");
-drop.innerHTML="";
-del.innerHTML="";
-data?.forEach(r=>{
-drop.innerHTML+=`<option value="${r.cli}">${r.cli}</option>`;
-del.innerHTML+=`<option value="${r.cli}">${r.cli}</option>`;
-});
-}
-
-async function addDisposition(){
-let val=document.getElementById("newDisp").value.trim();
-if(!val) return alert("Enter Disposition");
-await supabaseClient.from("dispositions").insert([{name:val}]);
-alert("Disposition Added");
-loadDisposition();
-}
-
-async function deleteDisposition(){
-let val=document.getElementById("dispDelete").value;
-await supabaseClient.from("dispositions").delete().eq("name",val);
-alert("Deleted");
-loadDisposition();
-}
-
-async function loadDisposition(){
-const {data}=await supabaseClient.from("dispositions").select("*");
-let drop=document.getElementById("dispositionDropdown");
-let del=document.getElementById("dispDelete");
-drop.innerHTML="";
-del.innerHTML="";
-data?.forEach(r=>{
-drop.innerHTML+=`<option value="${r.name}">${r.name}</option>`;
-del.innerHTML+=`<option value="${r.name}">${r.name}</option>`;
-});
-}
-
-/* CSV UPLOAD */
-async function uploadCSV(){
-const file=document.getElementById("csvFile").files[0];
-if(!file) return alert("Select File");
-const text=await file.text();
-const rows=text.split("\n").slice(1);
-for(let row of rows){
-let cols=row.split(",");
-if(cols.length>=2){
-await supabaseClient.from("customers").insert([{
-name:cols[0].trim(),
-number:cols[1].trim(),
-attempts:0
-}]);
-}
-}
-alert("Customers Uploaded");
-loadCustomers();
-}
-
-async function clearCustomers(){
-
-if(!confirm("Delete ALL Customers?")) return;
-
-const { error } = await supabaseClient
-.from("customers")
-.delete()
-.gte("id", 0);   // safer universal delete
-
-if(error){
-alert("Error: " + error.message);
-return;
-}
-
-customers=[];
-currentCustomer=null;
+function clearCustomers(){
+leads=[];
 currentIndex=0;
+renderLead();
+alert("All customers cleared");
+}
 
-document.getElementById("leadInfo").innerText="No Leads";
+// ================= LOAD LEADS =================
+async function loadLeads(){
+const {data}=await supabase.from("leads").select("*").order("id",{ascending:true});
+leads=data||[];
+renderLead();
+}
+
+function renderLead(){
+if(leads.length===0){
+document.getElementById("customerName").innerText="No Leads";
+document.getElementById("customerNumber").innerText="";
 document.getElementById("leadCounter").innerText="0 / 0";
-
-alert("All Customers Deleted Successfully");
-
-}
-
-/* CUSTOMERS */
-async function loadCustomers(){
-const {data}=await supabaseClient.from("customers").select("*");
-customers=data || [];
-currentIndex=0;
-showLead();
-}
-
-function showLead(){
-if(!customers.length){
-document.getElementById("leadInfo").innerText="No Leads";
 return;
 }
-currentCustomer=customers[currentIndex];
-document.getElementById("leadCounter").innerText=
-`${currentIndex+1} / ${customers.length}`;
-
-document.getElementById("leadInfo").innerText=
-`Name: ${currentCustomer.name} | Number: ${currentCustomer.number} | Attempts: ${currentCustomer.attempts || 0}`;
-
-loadHistory();
+let lead=leads[currentIndex];
+document.getElementById("customerName").innerText=lead.name;
+document.getElementById("customerNumber").innerText=lead.number;
+document.getElementById("leadCounter").innerText=(currentIndex+1)+" / "+leads.length;
 }
 
+// ================= NAVIGATION =================
 function nextLead(){
-if(currentIndex < customers.length-1){
+if(currentIndex<leads.length-1){
 currentIndex++;
-showLead();
+renderLead();
 }
 }
-
 function prevLead(){
-if(currentIndex > 0){
+if(currentIndex>0){
 currentIndex--;
-showLead();
+renderLead();
 }
 }
-
 function jumpToLead(){
-let index=parseInt(document.getElementById("jumpIndex").value)-1;
-if(index>=0 && index<customers.length){
-currentIndex=index;
-showLead();
+let num=parseInt(document.getElementById("jumpNumber").value);
+if(num>0 && num<=leads.length){
+currentIndex=num-1;
+renderLead();
 }
 }
-
-/* CALL */
-async function createCall(){
-
-if(!currentCustomer){
-alert("No Lead");
-return;
+function refreshLead(){
+renderLead();
 }
 
-if(!agentId){
-alert("Please Set Agent in Settings");
-return;
+// ================= CALL =================
+function makeCall(){
+let agent=localStorage.getItem("agent");
+let cli=localStorage.getItem("cli");
+let loginkey=localStorage.getItem("loginkey");
+let number=leads[currentIndex].number;
+
+let url=`https://ccs1.simple2call.com/cim/page?tenant=ccslite&script=click2dial&function=call&loginkey=${loginkey}&agent=${agent}&from=${cli}&to=${number}`;
+window.open(url,"_blank");
 }
 
-let cli=document.getElementById("cliDropdown").value;
-if(!cli){
-alert("Please Select CLI");
-return;
+// ================= SAVE =================
+async function saveDisposition(){
+let disp=document.getElementById("disposition").value;
+await supabase.from("leads").update({disposition:disp}).eq("id",leads[currentIndex].id);
 }
 
-callStarted=true;
-currentCallId="CALL-"+Date.now();
-
-document.getElementById("callId").innerText=currentCallId;
-document.getElementById("callTime").innerText=new Date().toLocaleString();
-
-/* ✅ FIXED SIMPLE2CALL URL */
-const apiURL = `https://ccs1.simple2call.com/cim/page?tenant=ccslite&script=click2dial&function=call&loginkey=lHCOU3y2Hg41xZv71WMg&agent=${agentId}&from=${cli}&to=${currentCustomer.number}`;
-
-console.log("Dial URL:", apiURL);
-
-/* Using image call to avoid CORS issue */
-const img = new Image();
-img.src = apiURL;
-
-alert("Call Initiated");
+async function saveAndNext(){
+await saveDisposition();
+nextLead();
 }
 
-async function saveCall(){
-if(!callStarted) return alert("Initiate Call First");
-
-await supabaseClient.from("call_logs").insert([{
-customer_id:currentCustomer.id,
-agent_id:agentId,
-cli:document.getElementById("cliDropdown").value,
-call_time:new Date(),
-call_id:currentCallId,
-disposition:document.getElementById("dispositionDropdown").value,
-notes:document.getElementById("notes").value,
-status:"completed"
-}]);
-
-await supabaseClient.from("customers")
-.update({attempts:(currentCustomer.attempts||0)+1})
-.eq("id",currentCustomer.id);
-
-alert("Call Saved");
-callStarted=false;
-loadCustomers();
+async function saveAndStop(){
+await saveDisposition();
+alert("Saved Successfully");
 }
 
-/* HISTORY */
-async function loadHistory(){
-const {data}=await supabaseClient
-.from("call_logs")
-.select("*")
-.eq("customer_id",currentCustomer.id)
-.order("created_at",{ascending:false});
+// ================= CSV =================
+async function uploadCSV(){
+let file=document.getElementById("csvFile").files[0];
+if(!file) return;
 
-let div=document.getElementById("history");
-div.innerHTML="";
-data?.forEach(r=>{
-div.innerHTML+=`<p>${r.call_time} | ${r.disposition} | ${r.notes}</p>`;
+let text=await file.text();
+let rows=text.split("\n");
+
+for(let i=1;i<rows.length;i++){
+let cols=rows[i].split(",");
+if(cols.length>=2){
+await supabase.from("leads").insert([{name:cols[0],number:cols[1]}]);
+}
+}
+alert("CSV Uploaded");
+loadLeads();
+}
+
+function downloadCSV(){
+let csv="Name,Number,Disposition\n";
+leads.forEach(l=>{
+csv+=`${l.name},${l.number},${l.disposition||""}\n`;
 });
+let blob=new Blob([csv],{type:"text/csv"});
+let url=URL.createObjectURL(blob);
+let a=document.createElement("a");
+a.href=url;
+a.download="report.csv";
+a.click();
 }
 
-/* REPORT */
-async function loadReports(){
-const {data,count}=await supabaseClient
-.from("call_logs")
-.select("*, customers(name,number,attempts)",{count:"exact"});
-
-document.getElementById("reportTotal").innerText=
-"Total Calls: "+(count||0);
-
-let table=document.getElementById("reportTable");
-table.innerHTML="";
-data?.forEach(r=>{
-table.innerHTML+=`
-<tr>
-<td>${r.customers?.name || ""}</td>
-<td>${r.customers?.number || ""}</td>
-<td>${r.customers?.attempts || 0}</td>
-<td>${r.call_id}</td>
-<td>${r.disposition}</td>
-<td>${r.call_time}</td>
-</tr>`;
-});
-}
-
-/* CSV DOWNLOAD FIXED FORMAT */
-async function downloadCSV(){
-const {data}=await supabaseClient
-.from("call_logs")
-.select("*, customers(name,number,attempts)");
-
-let csv="Name,Number,Attempts,Call ID,Disposition,Time\n";
-
-data?.forEach(r=>{
-csv+=`"${r.customers?.name || ""}","${r.customers?.number || ""}","${r.customers?.attempts || 0}","${r.call_id}","${r.disposition}","${r.call_time}"\n`;
-});
-
-const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
-const link=document.createElement("a");
-link.href=URL.createObjectURL(blob);
-link.download="report.csv";
-link.click();
-}
-
-/* INIT */
-window.onload=function(){
-loadAgent();
-loadCLI();
-loadDisposition();
-loadCustomers();
-};
+// ================= INIT =================
+loadSettings();
+loadLeads();
 
 </script>
 </body>
 </html>
-
