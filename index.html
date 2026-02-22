@@ -31,34 +31,64 @@ th{background:#e5e7eb}
 
 <!-- CALL SECTION -->
 <div id="call" class="section active">
-<h2>Call Panel</h2>
 
-<p><b>Agent:</b> <span id="agentDisplay"></span></p>
+<div class="crm-grid">
 
-<div class="top-controls">
-<button class="secondary" onclick="prevLead()">Previous</button>
-<span id="leadCounter"></span>
-<button class="secondary" onclick="nextLead()">Next</button>
-<br><br>
-Jump to Lead:
-<input type="number" id="jumpIndex" style="width:80px">
+<!-- LEFT PANEL -->
+<div class="crm-card">
+
+<h3>Lead Information</h3>
+
+<div class="lead-box">
+<div id="leadInfo" class="lead-text"></div>
+<div class="lead-counter" id="leadCounter"></div>
+</div>
+
+<div class="lead-nav">
+<button class="secondary" onclick="prevLead()">◀ Previous</button>
+<button class="secondary" onclick="nextLead()">Next ▶</button>
+</div>
+
+<div class="jump-box">
+<input type="number" id="jumpIndex" placeholder="Lead #" />
 <button onclick="jumpToLead()">Go</button>
 </div>
 
-<p id="leadInfo"></p>
+</div>
 
-<select id="cliDropdown"></select><br>
-<button class="primary" onclick="createCall()">Initiate Call</button>
+<!-- RIGHT PANEL -->
+<div class="crm-card">
 
+<h3>Call Controls</h3>
+
+<div class="agent-display">
+Agent: <span id="agentDisplay"></span>
+</div>
+
+<label>CLI</label>
+<select id="cliDropdown"></select>
+
+<button class="primary big-btn" onclick="createCall()">📞 Initiate Call</button>
+
+<div class="call-meta">
 <p><b>Call ID:</b> <span id="callId"></span></p>
 <p><b>Time:</b> <span id="callTime"></span></p>
+</div>
 
-<select id="dispositionDropdown"></select><br>
-<textarea id="notes" placeholder="Notes"></textarea><br>
-<button class="primary" onclick="saveCall()">Save Call Log</button>
+<label>Disposition</label>
+<select id="dispositionDropdown"></select>
 
-<h3>Customer History</h3>
-<div id="history"></div>
+<label>Notes</label>
+<textarea id="notes" placeholder="Enter call notes..."></textarea>
+
+<button class="primary save-btn" onclick="saveCall()">💾 Save Call</button>
+
+<h4>Customer History</h4>
+<div id="history" class="history-box"></div>
+
+</div>
+
+</div>
 </div>
 
 <!-- SETTINGS -->
@@ -222,10 +252,28 @@ loadCustomers();
 }
 
 async function clearCustomers(){
-if(!confirm("Delete All Customers?")) return;
-await supabaseClient.from("customers").delete().neq("id",0);
-alert("Customers Cleared");
-loadCustomers();
+
+if(!confirm("Delete ALL Customers?")) return;
+
+const { error } = await supabaseClient
+.from("customers")
+.delete()
+.gte("id", 0);   // safer universal delete
+
+if(error){
+alert("Error: " + error.message);
+return;
+}
+
+customers=[];
+currentCustomer=null;
+currentIndex=0;
+
+document.getElementById("leadInfo").innerText="No Leads";
+document.getElementById("leadCounter").innerText="0 / 0";
+
+alert("All Customers Deleted Successfully");
+
 }
 
 /* CUSTOMERS */
@@ -402,3 +450,4 @@ loadCustomers();
 </script>
 </body>
 </html>
+
