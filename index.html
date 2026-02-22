@@ -1,217 +1,315 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Simple2Call CRM</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simple2Call CRM - Click2Call</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body {
-  font-family: Arial, sans-serif;
-  background: #f4f6f9;
-  margin: 0;
-  padding: 20px;
-}
-
-.header {
-  background: #1f2937;
-  color: white;
-  padding: 15px 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-}
-
-.header h2 {
-  margin: 0 0 10px 0;
-}
-
-.top-config {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.top-config div {
-  display: flex;
-  flex-direction: column;
-}
-
-input {
-  padding: 6px 8px;
-  border-radius: 5px;
-  border: 1px solid #ccc;
-  font-size: 14px;
-}
-
-.table-container {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-  overflow: hidden;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th, td {
-  padding: 12px;
-  border-bottom: 1px solid #eee;
-  text-align: left;
-}
-
-th {
-  background: #f9fafb;
-}
-
-button {
-  padding: 6px 10px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.call-btn {
-  background: #16a34a;
-  color: white;
-}
-
-.call-btn:hover {
-  background: #15803d;
-}
-
-.edit-btn {
-  background: #f59e0b;
-  color: white;
-  margin-right: 5px;
-}
-
-.edit-btn:hover {
-  background: #d97706;
-}
-
-.status {
-  margin-top: 15px;
-  font-size: 14px;
-  font-weight: bold;
-}
-
-.success { color: green; }
-.error { color: red; }
-
+body {font-family: Arial; background:#f4f6f9; padding:20px;}
+.section {background:#fff; padding:15px; margin-bottom:20px; border-radius:8px;}
+h2 {margin-top:0;}
+button {padding:5px 10px; margin:3px; cursor:pointer;}
+table {width:100%; border-collapse: collapse;}
+th,td {border:1px solid #ddd; padding:8px;}
+th {background:#eee;}
+input,select {padding:5px;}
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h2>Simple2Call CRM - Click2Call</h2>
-  <div class="top-config">
-    <div>
-      <label>Agent ID</label>
-      <input type="text" id="agentId" value="sachin_test">
-    </div>
-    <div>
-      <label>CLI (From Number)</label>
-      <input type="text" id="cli" value="918657009654">
-    </div>
-  </div>
+<h2>Simple2Call CRM - Click2Call</h2>
+
+<!-- ================= SETTINGS ================= -->
+<div class="section">
+<h3>1) Settings</h3>
+
+Agent:
+<input type="text" id="agentId"><br><br>
+
+<h4>Upload CSV</h4>
+<input type="file" id="csvFile" accept=".csv">
+<button onclick="uploadCSV()">Submit</button>
+<span id="uploadCount"></span>
+<button onclick="clearData()">Clear Data</button>
+
+<br><br>
+
+<h4>Add CLI</h4>
+<input type="text" id="cliInput">
+<button onclick="saveCLI()">Save CLI</button>
+
+<br><br>
+
+<h4>Add Disposition</h4>
+<input type="text" id="dispInput">
+<button onclick="saveDisposition()">Save Disposition</button>
+
 </div>
 
-<div class="table-container">
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Customer Name</th>
-        <th>Mobile Number</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody id="customerTable">
-    </tbody>
-  </table>
+<!-- ================= CALL ================= -->
+<div class="section">
+<h3>2) Call</h3>
+
+Select CLI:
+<select id="cliDropdown"></select>
+
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Number</th>
+<th>Description</th>
+<th>Call</th>
+<th>Attempts</th>
+<th>Call ID</th>
+<th>Disposition</th>
+<th>Followup</th>
+</tr>
+</thead>
+<tbody id="callTable"></tbody>
+</table>
 </div>
 
-<div class="status" id="statusMsg"></div>
+<!-- ================= REPORT ================= -->
+<div class="section">
+<h3>3) Report</h3>
+<div id="reportSummary"></div>
+<button onclick="downloadReport()">Download CSV</button>
+</div>
 
 <script>
 
-const baseUrl = "https://ccs1.simple2call.com/cim/page";
-const tenant = "ccslite";
-const loginkey = "lHCOU3y2Hg41xZv71WMg";
+const supabase = window.supabase.createClient(
+"https://ovqaypngqsreeufizndg.supabase.co",
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92cWF5cG5ncXNyZWV1Zml6bmRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3MTk5MDksImV4cCI6MjA4NzI5NTkwOX0.oTVCvIqbhE-lUj7t6u-2oqLare6dO3myKH-EJRHFvIM"
+);
 
-const customers = [
-  {name:"Sachin Waghmare", number:"918452080008"},
-  {name:"Neeraj Parikh", number:"919322212193"},
-  {name:"Shoeb Shaikh", number:"917506489361"},
-  {name:"Bala Murgan", number:"918508361792"},
-  {name:"Ajay Mishra", number:"917756009344"},
-  {name:"Sneha Kulkarni", number:"918452080006"},
-  {name:"Vikas Mehta", number:"918452080007"},
-  {name:"Pooja Singh", number:"918452080008"},
-  {name:"Ankit Jain", number:"918452080009"},
-  {name:"Simran Kaur", number:"918452080010"}
-];
+const baseUrl="https://ccs1.simple2call.com/cim/page";
+const tenant="ccslite";
+const loginkey="lHCOU3y2Hg41xZv71WMg";
 
-function renderTable() {
-  const tbody = document.getElementById("customerTable");
-  tbody.innerHTML = "";
-
-  customers.forEach((cust, index) => {
-    const row = `
-      <tr>
-        <td>${index + 1}</td>
-        <td><input type="text" value="${cust.name}" id="name_${index}"></td>
-        <td><input type="text" value="${cust.number}" id="number_${index}"></td>
-        <td>
-          <button class="edit-btn" onclick="saveCustomer(${index})">Save</button>
-          <button class="call-btn" onclick="makeCall(${index})">Call</button>
-        </td>
-      </tr>
-    `;
-    tbody.innerHTML += row;
-  });
+function getAgent(){
+const params=new URLSearchParams(window.location.search);
+return params.get("agent");
 }
 
-function saveCustomer(index) {
-  const name = document.getElementById(`name_${index}`).value;
-  const number = document.getElementById(`number_${index}`).value;
+window.onload=async function(){
+let agent=getAgent();
+if(agent){
+document.getElementById("agentId").value=agent;
+document.getElementById("agentId").readOnly=true;
+}
+await loadSettings();
+await loadCustomers();
+checkFollowups();
+};
 
-  customers[index].name = name;
-  customers[index].number = number;
+async function saveCLI(){
+let agent=document.getElementById("agentId").value;
+let cli=document.getElementById("cliInput").value.trim();
+if(!cli) return alert("Enter CLI");
 
-  document.getElementById("statusMsg").innerHTML = "Customer Updated";
-  document.getElementById("statusMsg").className = "status success";
+await supabase.from("settings").insert({agent_id:agent,cli:cli});
+document.getElementById("cliInput").value="";
+await loadSettings();
+alert("CLI Saved");
 }
 
-function makeCall(index) {
-  const agent = document.getElementById("agentId").value.trim();
-  const cli = document.getElementById("cli").value.trim();
-  const customerNumber = customers[index].number;
+async function saveDisposition(){
+let agent=document.getElementById("agentId").value;
+let disp=document.getElementById("dispInput").value.trim();
+if(!disp) return alert("Enter Disposition");
 
-  if (!agent || !cli || !customerNumber) {
-    document.getElementById("statusMsg").innerHTML = "Missing Agent/CLI/Number";
-    document.getElementById("statusMsg").className = "status error";
-    return;
-  }
-
-  const fullUrl = `${baseUrl}?tenant=${tenant}&script=click2dial&function=call&loginkey=${loginkey}&agent=${encodeURIComponent(agent)}&from=${encodeURIComponent(cli)}&to=${encodeURIComponent(customerNumber)}`;
-
-  const iframe = document.createElement("iframe");
-  iframe.style.display = "none";
-  iframe.src = fullUrl;
-  document.body.appendChild(iframe);
-
-  document.getElementById("statusMsg").innerHTML = `Calling ${customers[index].name} (${customerNumber})`;
-  document.getElementById("statusMsg").className = "status success";
+await supabase.from("settings").insert({agent_id:agent,disposition:disp});
+document.getElementById("dispInput").value="";
+alert("Disposition Saved");
 }
 
-renderTable();
+async function loadSettings(){
+let agent=document.getElementById("agentId").value;
+let {data}=await supabase.from("settings").select("*").eq("agent_id",agent);
+
+let cliDD=document.getElementById("cliDropdown");
+cliDD.innerHTML="";
+
+data.forEach(row=>{
+if(row.cli){
+let opt=document.createElement("option");
+opt.value=row.cli;
+opt.text=row.cli;
+cliDD.appendChild(opt);
+}
+});
+}
+
+async function uploadCSV(){
+let agent=document.getElementById("agentId").value;
+let file=document.getElementById("csvFile").files[0];
+if(!file) return alert("Select CSV file");
+
+let text=await file.text();
+let rows=text.split("\n");
+let count=0;
+
+for(let i=1;i<rows.length;i++){
+let cols=rows[i].split(",");
+if(cols.length>=2){
+await supabase.from("customers").insert({
+agent_id:agent,
+name:cols[0].trim(),
+number:cols[1].trim()
+});
+count++;
+}
+}
+
+document.getElementById("uploadCount").innerText="Uploaded: "+count;
+await loadCustomers();
+}
+
+async function loadCustomers(){
+let agent=document.getElementById("agentId").value;
+let {data}=await supabase.from("customers").select("*").eq("agent_id",agent);
+
+let tbody=document.getElementById("callTable");
+tbody.innerHTML="";
+
+for(let cust of data){
+
+let {count}=await supabase.from("calls")
+.select("*",{count:"exact",head:true})
+.eq("customer_id",cust.id);
+
+let row=document.createElement("tr");
+
+row.innerHTML=`
+<td>${cust.name}</td>
+<td>${cust.number}</td>
+<td>${cust.description||""}</td>
+<td><button onclick="makeCall('${cust.id}','${cust.number}',${count||0})">Call</button></td>
+<td>${count||0}</td>
+<td id="callid_${cust.id}"></td>
+<td><select id="disp_${cust.id}"></select></td>
+<td>
+<input type="datetime-local" id="follow_${cust.id}">
+<button onclick="saveDispositionData('${cust.id}')">Save</button>
+</td>
+`;
+
+tbody.appendChild(row);
+loadDispositionDropdown(cust.id);
+}
+
+updateReport();
+}
+
+async function loadDispositionDropdown(custId){
+let agent=document.getElementById("agentId").value;
+let {data}=await supabase.from("settings").select("*").eq("agent_id",agent);
+
+let dd=document.getElementById("disp_"+custId);
+dd.innerHTML="";
+
+data.forEach(r=>{
+if(r.disposition){
+let opt=document.createElement("option");
+opt.value=r.disposition;
+opt.text=r.disposition;
+dd.appendChild(opt);
+}
+});
+}
+
+async function makeCall(custId,number,attempt){
+let agent=document.getElementById("agentId").value;
+let cli=document.getElementById("cliDropdown").value;
+
+let fullUrl=`${baseUrl}?tenant=${tenant}&script=click2dial&function=call&loginkey=${loginkey}&agent=${agent}&from=${cli}&to=${number}`;
+
+let iframe=document.createElement("iframe");
+iframe.style.display="none";
+iframe.src=fullUrl;
+document.body.appendChild(iframe);
+
+let callId="CALL"+Date.now();
+
+await supabase.from("calls").insert({
+customer_id:custId,
+agent_id:agent,
+attempt:attempt+1,
+call_time:new Date(),
+api_response:"Dialed",
+call_id:callId
+});
+
+document.getElementById("callid_"+custId).innerText=callId;
+await loadCustomers();
+}
+
+async function saveDispositionData(custId){
+let disp=document.getElementById("disp_"+custId).value;
+let follow=document.getElementById("follow_"+custId).value;
+
+await supabase.from("calls")
+.update({disposition:disp,followup_time:follow})
+.eq("customer_id",custId);
+
+alert("Saved");
+}
+
+async function updateReport(){
+let agent=document.getElementById("agentId").value;
+let {data:customers}=await supabase.from("customers").select("*").eq("agent_id",agent);
+let {data:calls}=await supabase.from("calls").select("*").eq("agent_id",agent);
+
+let follow=calls.filter(c=>c.followup_time).length;
+
+document.getElementById("reportSummary").innerHTML=
+`Total Data: ${customers.length} | Total Calls: ${calls.length} | Followups: ${follow}`;
+}
+
+async function downloadReport(){
+let agent=document.getElementById("agentId").value;
+let {data:calls}=await supabase.from("calls").select("*").eq("agent_id",agent);
+
+let csv="CustomerID,Attempt,CallID,Disposition,Followup\n";
+calls.forEach(c=>{
+csv+=`${c.customer_id},${c.attempt},${c.call_id},${c.disposition||""},${c.followup_time||""}\n`;
+});
+
+let blob=new Blob([csv],{type:"text/csv"});
+let url=URL.createObjectURL(blob);
+let a=document.createElement("a");
+a.href=url;
+a.download="report.csv";
+a.click();
+}
+
+async function clearData(){
+let agent=document.getElementById("agentId").value;
+await supabase.from("customers").delete().eq("agent_id",agent);
+await supabase.from("calls").delete().eq("agent_id",agent);
+alert("Data Cleared");
+await loadCustomers();
+}
+
+async function checkFollowups(){
+setInterval(async()=>{
+let agent=document.getElementById("agentId").value;
+let now=new Date().toISOString();
+
+let {data}=await supabase.from("calls")
+.select("*")
+.eq("agent_id",agent)
+.lte("followup_time",now);
+
+data.forEach(d=>{
+alert("Followup Reminder for Customer ID: "+d.customer_id);
+});
+},60000);
+}
 
 </script>
-
 </body>
 </html>
-
