@@ -28,7 +28,15 @@ async function uploadCSV(){
 }
 
 async function saveCLI(){
-  alert("cli working");
+  const { data, error } = await supabaseClient
+    .from("settings")
+    .insert({ agent_id: "sachin_test", cli: "918657009654" });
+
+  if(error){
+    alert("Error: " + error.message);
+  } else {
+    alert("Saved to DB");
+  }
 }
 
 async function saveDisposition(){
@@ -46,3 +54,4 @@ async function clearData(){
 
 </body>
 </html>
+
