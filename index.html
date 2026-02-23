@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>S2C CRM FINAL WORKING</title>
+<title>S2C CRM PRO VERSION</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -16,6 +16,7 @@ button.secondary{background:#6b7280;color:white;border:none;padding:6px 10px;cur
 table{border-collapse:collapse;width:100%;background:white}
 th,td{border:1px solid #ddd;padding:8px;text-align:left}
 th{background:#e5e7eb}
+a{cursor:pointer;color:#2563eb;text-decoration:underline}
 </style>
 </head>
 
@@ -30,17 +31,23 @@ th{background:#e5e7eb}
 
 <!-- CALL SECTION -->
 <div id="call" class="section active">
+
+<h3>Call Filter</h3>
+<select id="callFilter" onchange="applyCallFilter()">
+<option value="all">All</option>
+<option value="fresh">Fresh</option>
+<option value="follow">Follow Up</option>
+<option value="today">Today Added</option>
+</select>
+
+<hr>
+
 <h3>Lead Information</h3>
 <div id="leadInfo"></div>
 <div id="leadCounter"></div>
 
 <button class="secondary" onclick="prevLead()">Previous</button>
 <button class="secondary" onclick="nextLead()">Next</button>
-<br><br>
-
-Jump to Lead:
-<input type="number" id="jumpIndex" style="width:80px">
-<button onclick="jumpToLead()">Go</button>
 
 <hr>
 
@@ -53,12 +60,18 @@ Agent: <span id="agentDisplay"></span><br>
 <p><b>Time:</b> <span id="callTime"></span></p>
 
 <select id="dispositionDropdown"></select><br>
+
+<label>
+<input type="checkbox" id="followUpCheckbox"> Mark as Follow Up
+</label><br>
+
 <textarea id="notes" placeholder="Notes"></textarea><br>
 
 <button class="primary" onclick="saveCall()">💾 Save Call</button>
 
 <h4>Customer History</h4>
 <div id="history"></div>
+
 </div>
 
 <!-- SETTINGS -->
@@ -91,11 +104,41 @@ Agent: <span id="agentDisplay"></span><br>
 
 </div>
 
-<!-- REPORT -->
+<!-- REPORT SECTION -->
 <div id="report" class="section">
-<h3>Reports</h3>
-<p id="reportTotal"></p>
-<button onclick="downloadCSV()">Download CSV</button>
+
+<h3>Reports Dashboard</h3>
+
+<table>
+<tr>
+<th>Category</th>
+<th>Overall</th>
+<th>Today</th>
+</tr>
+
+<tr>
+<td>Total Data</td>
+<td><a onclick="loadReportData('total','overall')"><span id="totalOverall">0</span></a></td>
+<td><a onclick="loadReportData('total','today')"><span id="totalToday">0</span></a></td>
+</tr>
+
+<tr>
+<td>Fresh (Attempts=0)</td>
+<td><a onclick="loadReportData('fresh','overall')"><span id="freshOverall">0</span></a></td>
+<td><a onclick="loadReportData('fresh','today')"><span id="freshToday">0</span></a></td>
+</tr>
+
+<tr>
+<td>Follow Up</td>
+<td><a onclick="loadReportData('follow','overall')"><span id="followOverall">0</span></a></td>
+<td><a onclick="loadReportData('follow','today')"><span id="followToday">0</span></a></td>
+</tr>
+</table>
+
+<br>
+<button onclick="downloadFilteredCSV()">Download CSV</button>
+
+<hr>
 
 <table>
 <thead>
@@ -103,20 +146,20 @@ Agent: <span id="agentDisplay"></span><br>
 <th>Name</th>
 <th>Number</th>
 <th>Attempts</th>
-<th>Call ID</th>
-<th>Disposition</th>
-<th>Time</th>
+<th>Follow Up</th>
+<th>Created At</th>
 </tr>
 </thead>
 <tbody id="reportTable"></tbody>
 </table>
+
 </div>
 
 <script>
 
 const supabaseClient = supabase.createClient(
 "https://ovqaypngqsreeufizndg.supabase.co",
-"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92cWF5cG5ncXNyZWV1Zml6bmRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3MTk5MDksImV4cCI6MjA4NzI5NTkwOX0.oTVCvIqbhE-lUj7t6u-2oqLare6dO3myKH-EJRHFvIM"
+"YOUR_PUBLIC_ANON_KEY"
 );
 
 let customers=[];
@@ -125,178 +168,48 @@ let agentId="";
 let callStarted=false;
 let currentCallId="";
 let currentCustomer=null;
+let currentReportFilter=null;
 
-/* NAV */
 function showSection(id){
 document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
 document.getElementById(id).classList.add("active");
 if(id==="report") loadReports();
 }
 
-/* ================= CSV FIXED ================= */
-async function uploadCSV() {
+async function uploadCSV(){
+const file=document.getElementById("csvFile").files[0];
+if(!file) return alert("Select CSV");
 
-const file = document.getElementById("csvFile").files[0];
-if(!file){
-alert("Select CSV file");
-return;
-}
-
-const reader = new FileReader();
-
-reader.onload = async function(e){
-
-const text = e.target.result.trim();
-const rows = text.split(/\r?\n/);
-
-if(rows.length < 2){
-alert("Invalid CSV format");
-return;
-}
-
+const reader=new FileReader();
+reader.onload=async function(e){
+let rows=e.target.result.split(/\r?\n/);
 let insertData=[];
 
 for(let i=1;i<rows.length;i++){
-
-if(!rows[i].trim()) continue;
-
-let cols = rows[i].split(",");
-
-let name = cols[0]?.trim();
-let number = cols[1]?.trim();
-
-if(!name || !number) continue;
-
-/* Fix Excel scientific format */
-if(number.includes("E+")){
-number = Number(number).toFixed(0);
-}
-
+if(!rows[i]) continue;
+let cols=rows[i].split(",");
+if(cols.length<2) continue;
 insertData.push({
-name:name,
-number:number,
-attempts:0
+name:cols[0].trim(),
+number:cols[1].trim(),
+attempts:0,
+follow_up:false
 });
 }
 
-if(insertData.length===0){
-alert("No valid rows found");
-return;
-}
-
-const { error } = await supabaseClient
-.from("customers")
-.insert(insertData);
-
-if(error){
-alert("Upload Failed: "+error.message);
-console.log(error);
-return;
-}
-
-alert("CSV Uploaded Successfully ✅");
-document.getElementById("csvFile").value="";
+await supabaseClient.from("customers").insert(insertData);
+alert("Uploaded");
 loadCustomers();
 };
-
 reader.readAsText(file);
 }
-/* ============================================ */
 
-/* SETTINGS FUNCTIONS (UNCHANGED) */
-
-async function saveAgent(){
-let val=document.getElementById("agentInput").value.trim();
-if(!val) return alert("Enter Agent");
-await supabaseClient.from("agent_settings").insert([{agent_id:val}]);
-loadAgent();
-}
-
-async function loadAgent(){
-const {data}=await supabaseClient.from("agent_settings")
-.select("*").order("created_at",{ascending:false}).limit(1);
-if(data?.length){
-agentId=data[0].agent_id;
-document.getElementById("agentDisplay").innerText=agentId;
-}
-}
-
-async function addCLI(){
-let cli=document.getElementById("newCli").value.trim();
-if(!cli) return;
-await supabaseClient.from("cli_settings").insert([{cli}]);
-loadCLI();
-}
-
-async function deleteCLI(){
-let cli=document.getElementById("cliDelete").value;
-await supabaseClient.from("cli_settings").delete().eq("cli",cli);
-loadCLI();
-}
-
-async function loadCLI(){
-const {data}=await supabaseClient.from("cli_settings").select("*");
-let drop=document.getElementById("cliDropdown");
-let del=document.getElementById("cliDelete");
-drop.innerHTML="";
-del.innerHTML="";
-data?.forEach(r=>{
-drop.innerHTML+=`<option value="${r.cli}">${r.cli}</option>`;
-del.innerHTML+=`<option value="${r.cli}">${r.cli}</option>`;
-});
-}
-
-async function addDisposition(){
-let val=document.getElementById("newDisp").value.trim();
-if(!val) return;
-await supabaseClient.from("dispositions").insert([{name:val}]);
-loadDisposition();
-}
-
-async function deleteDisposition(){
-let val=document.getElementById("dispDelete").value;
-await supabaseClient.from("dispositions").delete().eq("name",val);
-loadDisposition();
-}
-
-async function loadDisposition(){
-const {data}=await supabaseClient.from("dispositions").select("*");
-let drop=document.getElementById("dispositionDropdown");
-let del=document.getElementById("dispDelete");
-drop.innerHTML="";
-del.innerHTML="";
-data?.forEach(r=>{
-drop.innerHTML+=`<option value="${r.name}">${r.name}</option>`;
-del.innerHTML+=`<option value="${r.name}">${r.name}</option>`;
-});
-}
-
-/* CLEAR CUSTOMERS FIXED */
 async function clearCustomers(){
-if(!confirm("Delete ALL Customers?")) return;
-
-const { error } = await supabaseClient
-.from("customers")
-.delete()
-.not("id","is",null);
-
-if(error){
-alert("Error: "+error.message);
-return;
+if(!confirm("Delete All?")) return;
+await supabaseClient.from("customers").delete().not("id","is",null);
+loadCustomers();
 }
 
-customers=[];
-currentCustomer=null;
-currentIndex=0;
-
-document.getElementById("leadInfo").innerText="No Leads";
-document.getElementById("leadCounter").innerText="0 / 0";
-document.getElementById("history").innerHTML="";
-
-alert("All Customers Deleted Successfully");
-}
-
-/* CUSTOMERS */
 async function loadCustomers(){
 const {data}=await supabaseClient.from("customers").select("*").order("id");
 customers=data||[];
@@ -311,8 +224,7 @@ document.getElementById("leadCounter").innerText="0 / 0";
 return;
 }
 currentCustomer=customers[currentIndex];
-document.getElementById("leadCounter").innerText=
-`${currentIndex+1} / ${customers.length}`;
+document.getElementById("leadCounter").innerText=`${currentIndex+1}/${customers.length}`;
 document.getElementById("leadInfo").innerText=
 `Name: ${currentCustomer.name} | Number: ${currentCustomer.number} | Attempts: ${currentCustomer.attempts||0}`;
 loadHistory();
@@ -320,105 +232,121 @@ loadHistory();
 
 function nextLead(){ if(currentIndex<customers.length-1){currentIndex++;showLead();}}
 function prevLead(){ if(currentIndex>0){currentIndex--;showLead();}}
-function jumpToLead(){
-let index=parseInt(document.getElementById("jumpIndex").value)-1;
-if(index>=0 && index<customers.length){currentIndex=index;showLead();}
-}
 
-/* CALL */
 async function createCall(){
 if(!currentCustomer) return alert("No Lead");
-if(!agentId) return alert("Set Agent in Settings");
-let cli=document.getElementById("cliDropdown").value;
-if(!cli) return alert("Select CLI");
-
-callStarted=true;
 currentCallId="CALL-"+Date.now();
-
+callStarted=true;
 document.getElementById("callId").innerText=currentCallId;
 document.getElementById("callTime").innerText=new Date().toLocaleString();
-
-const apiURL=`https://ccs1.simple2call.com/cim/page?tenant=ccslite&script=click2dial&function=call&loginkey=lHCOU3y2Hg41xZv71WMg&agent=${agentId}&from=${cli}&to=${currentCustomer.number}`;
-
-(new Image()).src=apiURL;
 alert("Call Initiated");
 }
 
 async function saveCall(){
-if(!callStarted) return alert("Initiate Call First");
+if(!callStarted) return alert("Start Call First");
 
-await supabaseClient.from("call_logs").insert([{
-customer_id:currentCustomer.id,
-agent_id:agentId,
-cli:document.getElementById("cliDropdown").value,
-call_time:new Date(),
-call_id:currentCallId,
-disposition:document.getElementById("dispositionDropdown").value,
-notes:document.getElementById("notes").value,
-status:"completed"
-}]);
+let followUp=document.getElementById("followUpCheckbox").checked;
 
 await supabaseClient.from("customers")
-.update({attempts:(currentCustomer.attempts||0)+1})
+.update({
+attempts:(currentCustomer.attempts||0)+1,
+follow_up:followUp
+})
 .eq("id",currentCustomer.id);
 
-alert("Call Saved");
+alert("Saved");
 callStarted=false;
 loadCustomers();
 }
 
-async function loadHistory(){
-if(!currentCustomer) return;
-const {data}=await supabaseClient
-.from("call_logs")
-.select("*")
-.eq("customer_id",currentCustomer.id)
-.order("created_at",{ascending:false});
-let div=document.getElementById("history");
-div.innerHTML="";
-data?.forEach(r=>{
-div.innerHTML+=`<p>${r.call_time} | ${r.disposition} | ${r.notes}</p>`;
-});
+async function loadHistory(){}
+
+async function applyCallFilter(){
+let filter=document.getElementById("callFilter").value;
+let query=supabaseClient.from("customers").select("*");
+let today=new Date(); today.setHours(0,0,0,0);
+
+if(filter==="fresh") query=query.eq("attempts",0);
+if(filter==="follow") query=query.eq("follow_up",true);
+if(filter==="today") query=query.gte("created_at",today.toISOString());
+
+const {data}=await query.order("id");
+customers=data||[];
+currentIndex=0;
+showLead();
 }
 
 async function loadReports(){
-const {data,count}=await supabaseClient
-.from("call_logs")
-.select("*, customers(name,number,attempts)",{count:"exact"});
-document.getElementById("reportTotal").innerText="Total Calls: "+(count||0);
+let today=new Date(); today.setHours(0,0,0,0);
+const {data}=await supabaseClient.from("customers").select("*");
+
+let totalOverall=data.length;
+let totalToday=data.filter(d=>new Date(d.created_at)>=today).length;
+
+let freshOverall=data.filter(d=>d.attempts===0).length;
+let freshToday=data.filter(d=>d.attempts===0 && new Date(d.created_at)>=today).length;
+
+let followOverall=data.filter(d=>d.follow_up===true).length;
+let followToday=data.filter(d=>d.follow_up===true && new Date(d.created_at)>=today).length;
+
+document.getElementById("totalOverall").innerText=totalOverall;
+document.getElementById("totalToday").innerText=totalToday;
+document.getElementById("freshOverall").innerText=freshOverall;
+document.getElementById("freshToday").innerText=freshToday;
+document.getElementById("followOverall").innerText=followOverall;
+document.getElementById("followToday").innerText=followToday;
+}
+
+async function loadReportData(type,dateType){
+currentReportFilter={type,dateType};
+let query=supabaseClient.from("customers").select("*");
+let today=new Date(); today.setHours(0,0,0,0);
+
+if(type==="fresh") query=query.eq("attempts",0);
+if(type==="follow") query=query.eq("follow_up",true);
+if(dateType==="today") query=query.gte("created_at",today.toISOString());
+
+const {data}=await query.order("created_at",{ascending:false});
+
 let table=document.getElementById("reportTable");
 table.innerHTML="";
-data?.forEach(r=>{
+data.forEach(r=>{
 table.innerHTML+=`
 <tr>
-<td>${r.customers?.name||""}</td>
-<td>${r.customers?.number||""}</td>
-<td>${r.customers?.attempts||0}</td>
-<td>${r.call_id}</td>
-<td>${r.disposition}</td>
-<td>${r.call_time}</td>
+<td>${r.name}</td>
+<td>${r.number}</td>
+<td>${r.attempts||0}</td>
+<td>${r.follow_up?"Yes":"No"}</td>
+<td>${r.created_at}</td>
 </tr>`;
 });
 }
 
-async function downloadCSV(){
-const {data}=await supabaseClient
-.from("call_logs")
-.select("*, customers(name,number,attempts)");
-let csv="Name,Number,Attempts,Call ID,Disposition,Time\n";
-data?.forEach(r=>{
-csv+=`"${r.customers?.name||""}","${r.customers?.number||""}","${r.customers?.attempts||0}","${r.call_id}","${r.disposition}","${r.call_time}"\n`;
+async function downloadFilteredCSV(){
+if(!currentReportFilter) return alert("Select report first");
+
+let query=supabaseClient.from("customers").select("*");
+let today=new Date(); today.setHours(0,0,0,0);
+
+if(currentReportFilter.type==="fresh") query=query.eq("attempts",0);
+if(currentReportFilter.type==="follow") query=query.eq("follow_up",true);
+if(currentReportFilter.dateType==="today") query=query.gte("created_at",today.toISOString());
+
+const {data}=await query;
+
+let csv="Name,Number,Attempts,Follow Up,Created At\n";
+data.forEach(r=>{
+csv+=`${r.name},${r.number},${r.attempts||0},${r.follow_up},${r.created_at}\n`;
 });
-const blob=new Blob([csv],{type:"text/csv"});
-const link=document.createElement("a");
+
+let blob=new Blob([csv],{type:"text/csv"});
+let link=document.createElement("a");
 link.href=URL.createObjectURL(blob);
 link.download="report.csv";
 link.click();
 }
+
 window.onload=function(){
-loadAgent();
-loadCLI();
-loadDisposition();
 loadCustomers();
 };
 
