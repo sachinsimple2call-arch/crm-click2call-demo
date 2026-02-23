@@ -58,18 +58,59 @@ Agent: <span id="agentDisplay"></span><br>
 <button class="primary" onclick="saveCall()">💾 Save Call</button>
 
 <h4>Customer History</h4>
-
-<!-- ✅ NEW FILTER ADDED -->
-<select id="historyFilter" onchange="loadHistory()">
-<option value="all">All</option>
-<option value="completed">Completed</option>
-</select>
-
 <div id="history"></div>
 </div>
 
-<!-- SETTINGS + REPORT SECTION SAME AS YOUR ORIGINAL -->
-<!-- (Nothing changed below except saveCall + loadHistory improvements) -->
+<!-- SETTINGS -->
+<div id="settings" class="section">
+
+<h3>Agent</h3>
+<input id="agentInput">
+<button onclick="saveAgent()">Save</button>
+
+<h3>CLI</h3>
+<input id="newCli">
+<button onclick="addCLI()">Add</button><br>
+<select id="cliDelete"></select>
+<button onclick="deleteCLI()">Delete</button>
+
+<h3>Disposition</h3>
+<input id="newDisp">
+<button onclick="addDisposition()">Add</button><br>
+<select id="dispDelete"></select>
+<button onclick="deleteDisposition()">Delete</button>
+
+<hr>
+
+<h3>Upload CSV</h3>
+<input type="file" id="csvFile" accept=".csv">
+<button onclick="uploadCSV()">Upload CSV</button>
+
+<br><br>
+<button onclick="clearCustomers()">Clear All Customers</button>
+
+</div>
+
+<!-- REPORT -->
+<div id="report" class="section">
+<h3>Reports</h3>
+<p id="reportTotal"></p>
+<button onclick="downloadCSV()">Download CSV</button>
+
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Number</th>
+<th>Attempts</th>
+<th>Call ID</th>
+<th>Disposition</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody id="reportTable"></tbody>
+</table>
+</div>
 
 <script>
 
@@ -92,8 +133,170 @@ document.getElementById(id).classList.add("active");
 if(id==="report") loadReports();
 }
 
-/* ================= CUSTOMERS ================= */
+/* ================= CSV FIXED ================= */
+async function uploadCSV() {
 
+const file = document.getElementById("csvFile").files[0];
+if(!file){
+alert("Select CSV file");
+return;
+}
+
+const reader = new FileReader();
+
+reader.onload = async function(e){
+
+const text = e.target.result.trim();
+const rows = text.split(/\r?\n/);
+
+if(rows.length < 2){
+alert("Invalid CSV format");
+return;
+}
+
+let insertData=[];
+
+for(let i=1;i<rows.length;i++){
+
+if(!rows[i].trim()) continue;
+
+let cols = rows[i].split(",");
+
+let name = cols[0]?.trim();
+let number = cols[1]?.trim();
+
+if(!name || !number) continue;
+
+/* Fix Excel scientific format */
+if(number.includes("E+")){
+number = Number(number).toFixed(0);
+}
+
+insertData.push({
+name:name,
+number:number,
+attempts:0
+});
+}
+
+if(insertData.length===0){
+alert("No valid rows found");
+return;
+}
+
+const { error } = await supabaseClient
+.from("customers")
+.insert(insertData);
+
+if(error){
+alert("Upload Failed: "+error.message);
+console.log(error);
+return;
+}
+
+alert("CSV Uploaded Successfully ✅");
+document.getElementById("csvFile").value="";
+loadCustomers();
+};
+
+reader.readAsText(file);
+}
+/* ============================================ */
+
+/* SETTINGS FUNCTIONS (UNCHANGED) */
+
+async function saveAgent(){
+let val=document.getElementById("agentInput").value.trim();
+if(!val) return alert("Enter Agent");
+await supabaseClient.from("agent_settings").insert([{agent_id:val}]);
+loadAgent();
+}
+
+async function loadAgent(){
+const {data}=await supabaseClient.from("agent_settings")
+.select("*").order("created_at",{ascending:false}).limit(1);
+if(data?.length){
+agentId=data[0].agent_id;
+document.getElementById("agentDisplay").innerText=agentId;
+}
+}
+
+async function addCLI(){
+let cli=document.getElementById("newCli").value.trim();
+if(!cli) return;
+await supabaseClient.from("cli_settings").insert([{cli}]);
+loadCLI();
+}
+
+async function deleteCLI(){
+let cli=document.getElementById("cliDelete").value;
+await supabaseClient.from("cli_settings").delete().eq("cli",cli);
+loadCLI();
+}
+
+async function loadCLI(){
+const {data}=await supabaseClient.from("cli_settings").select("*");
+let drop=document.getElementById("cliDropdown");
+let del=document.getElementById("cliDelete");
+drop.innerHTML="";
+del.innerHTML="";
+data?.forEach(r=>{
+drop.innerHTML+=`<option value="${r.cli}">${r.cli}</option>`;
+del.innerHTML+=`<option value="${r.cli}">${r.cli}</option>`;
+});
+}
+
+async function addDisposition(){
+let val=document.getElementById("newDisp").value.trim();
+if(!val) return;
+await supabaseClient.from("dispositions").insert([{name:val}]);
+loadDisposition();
+}
+
+async function deleteDisposition(){
+let val=document.getElementById("dispDelete").value;
+await supabaseClient.from("dispositions").delete().eq("name",val);
+loadDisposition();
+}
+
+async function loadDisposition(){
+const {data}=await supabaseClient.from("dispositions").select("*");
+let drop=document.getElementById("dispositionDropdown");
+let del=document.getElementById("dispDelete");
+drop.innerHTML="";
+del.innerHTML="";
+data?.forEach(r=>{
+drop.innerHTML+=`<option value="${r.name}">${r.name}</option>`;
+del.innerHTML+=`<option value="${r.name}">${r.name}</option>`;
+});
+}
+
+/* CLEAR CUSTOMERS FIXED */
+async function clearCustomers(){
+if(!confirm("Delete ALL Customers?")) return;
+
+const { error } = await supabaseClient
+.from("customers")
+.delete()
+.not("id","is",null);
+
+if(error){
+alert("Error: "+error.message);
+return;
+}
+
+customers=[];
+currentCustomer=null;
+currentIndex=0;
+
+document.getElementById("leadInfo").innerText="No Leads";
+document.getElementById("leadCounter").innerText="0 / 0";
+document.getElementById("history").innerHTML="";
+
+alert("All Customers Deleted Successfully");
+}
+
+/* CUSTOMERS */
 async function loadCustomers(){
 const {data}=await supabaseClient.from("customers").select("*").order("id");
 customers=data||[];
@@ -122,8 +325,7 @@ let index=parseInt(document.getElementById("jumpIndex").value)-1;
 if(index>=0 && index<customers.length){currentIndex=index;showLead();}
 }
 
-/* ================= CALL ================= */
-
+/* CALL */
 async function createCall(){
 if(!currentCustomer) return alert("No Lead");
 if(!agentId) return alert("Set Agent in Settings");
@@ -161,53 +363,62 @@ await supabaseClient.from("customers")
 .eq("id",currentCustomer.id);
 
 alert("Call Saved");
-
-/* ✅ FIX ADDED */
 callStarted=false;
-currentCallId="";
-document.getElementById("callId").innerText="";
-document.getElementById("notes").value="";
-
-/* ✅ RELOAD ONLY HISTORY (NO FULL PAGE REFRESH) */
-await loadHistory();
-await loadCustomers();
+loadCustomers();
 }
 
-/* ================= HISTORY (FILTER FIXED) ================= */
-
 async function loadHistory(){
-
 if(!currentCustomer) return;
-
-let filter=document.getElementById("historyFilter")?.value || "all";
-
-let query = supabaseClient
+const {data}=await supabaseClient
 .from("call_logs")
 .select("*")
 .eq("customer_id",currentCustomer.id)
 .order("created_at",{ascending:false});
-
-if(filter!=="all"){
-query=query.eq("status",filter);
-}
-
-const {data}=await query;
-
 let div=document.getElementById("history");
 div.innerHTML="";
-
-if(!data || data.length===0){
-div.innerHTML="<p>No Call History</p>";
-return;
-}
-
-data.forEach(r=>{
-div.innerHTML+=`<p>${new Date(r.call_time).toLocaleString()} | ${r.disposition} | ${r.notes}</p>`;
+data?.forEach(r=>{
+div.innerHTML+=`<p>${r.call_time} | ${r.disposition} | ${r.notes}</p>`;
 });
 }
 
-/* LOAD ON START */
+async function loadReports(){
+const {data,count}=await supabaseClient
+.from("call_logs")
+.select("*, customers(name,number,attempts)",{count:"exact"});
+document.getElementById("reportTotal").innerText="Total Calls: "+(count||0);
+let table=document.getElementById("reportTable");
+table.innerHTML="";
+data?.forEach(r=>{
+table.innerHTML+=`
+<tr>
+<td>${r.customers?.name||""}</td>
+<td>${r.customers?.number||""}</td>
+<td>${r.customers?.attempts||0}</td>
+<td>${r.call_id}</td>
+<td>${r.disposition}</td>
+<td>${r.call_time}</td>
+</tr>`;
+});
+}
+
+async function downloadCSV(){
+const {data}=await supabaseClient
+.from("call_logs")
+.select("*, customers(name,number,attempts)");
+let csv="Name,Number,Attempts,Call ID,Disposition,Time\n";
+data?.forEach(r=>{
+csv+=`"${r.customers?.name||""}","${r.customers?.number||""}","${r.customers?.attempts||0}","${r.call_id}","${r.disposition}","${r.call_time}"\n`;
+});
+const blob=new Blob([csv],{type:"text/csv"});
+const link=document.createElement("a");
+link.href=URL.createObjectURL(blob);
+link.download="report.csv";
+link.click();
+}
 window.onload=function(){
+loadAgent();
+loadCLI();
+loadDisposition();
 loadCustomers();
 };
 
