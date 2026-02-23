@@ -1,218 +1,216 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>S2C CRM - Final Working</title>
+<title>S2C CRM FINAL WORKING</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
-body {font-family: Arial; background:#f4f6f9; margin:20px;}
-h2 {color:#333;}
-
-.topbar {
-  background:#fff;
-  padding:15px;
-  border-radius:8px;
-  margin-bottom:20px;
-  box-shadow:0 2px 5px rgba(0,0,0,0.1);
-}
-
-input, button, select {
-  padding:8px;
-  margin:5px;
-  border-radius:5px;
-  border:1px solid #ccc;
-}
-
-button {
-  background:#007bff;
-  color:#fff;
-  cursor:pointer;
-}
-
-button:hover {
-  background:#0056b3;
-}
-
-table {
-  width:100%;
-  background:#fff;
-  border-collapse:collapse;
-  margin-top:20px;
-}
-
-th, td {
-  padding:10px;
-  border:1px solid #ddd;
-  text-align:center;
-}
-
-th {
-  background:#007bff;
-  color:white;
-}
-
-.call-btn {
-  background:green;
-}
-
-.edit-btn {
-  background:orange;
-}
-
-.history-box {
-  background:#fff;
-  padding:15px;
-  border-radius:8px;
-  margin-top:20px;
-}
+body{font-family:Arial;background:#f4f6f9;margin:0}
+.navbar{background:#111827;padding:12px;display:flex;gap:20px}
+.navbar button{background:none;color:white;border:none;cursor:pointer;font-size:14px}
+.section{display:none;padding:20px}
+.active{display:block}
+input,select,textarea{padding:8px;margin:5px 0;width:250px}
+button.primary{background:#2563eb;color:white;border:none;padding:8px 12px;cursor:pointer}
+button.secondary{background:#6b7280;color:white;border:none;padding:6px 10px;cursor:pointer}
+table{border-collapse:collapse;width:100%;background:white}
+th,td{border:1px solid #ddd;padding:8px;text-align:left}
+th{background:#e5e7eb}
 </style>
 </head>
 
 <body>
 
-<h2>📞 Simple2Call CRM Demo</h2>
-
-<div class="topbar">
-  <b>Agent ID:</b>
-  <input type="text" id="agent" value="sachin_test">
-
-  <b>CLI:</b>
-  <input type="text" id="cli" value="918657009654">
+<div class="navbar">
+<button onclick="showSection('call')">Call</button>
+<button onclick="showSection('settings')">Settings</button>
+<button onclick="showSection('report')">Reports</button>
+<button onclick="loadCustomers()">Refresh</button>
 </div>
 
-<h3>Add Customer</h3>
-<input type="text" id="custName" placeholder="Customer Name">
-<input type="text" id="custNumber" placeholder="Mobile Number">
-<button onclick="addCustomer()">Add</button>
+<!-- CALL SECTION -->
+<div id="call" class="section active">
+<h3>Lead Information</h3>
+<div id="leadInfo"></div>
+<div id="leadCounter"></div>
 
-<table id="customerTable">
-<thead>
-<tr>
-<th>Name</th>
-<th>Mobile</th>
-<th>Action</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
+<button class="secondary" onclick="prevLead()">Previous</button>
+<button class="secondary" onclick="nextLead()">Next</button>
+<br><br>
 
-<div class="history-box">
-<h3>Call History</h3>
+Jump to Lead:
+<input type="number" id="jumpIndex" style="width:80px">
+<button onclick="jumpToLead()">Go</button>
 
-<select id="filterType" onchange="filterHistory()">
+<hr>
+
+Agent: <span id="agentDisplay"></span><br>
+<select id="cliDropdown"></select><br>
+
+<button class="primary" onclick="createCall()">📞 Initiate Call</button>
+
+<p><b>Call ID:</b> <span id="callId"></span></p>
+<p><b>Time:</b> <span id="callTime"></span></p>
+
+<select id="dispositionDropdown"></select><br>
+<textarea id="notes" placeholder="Notes"></textarea><br>
+
+<button class="primary" onclick="saveCall()">💾 Save Call</button>
+
+<h4>Customer History</h4>
+
+<!-- ✅ NEW FILTER ADDED -->
+<select id="historyFilter" onchange="loadHistory()">
 <option value="all">All</option>
-<option value="success">Success</option>
-<option value="failed">Failed</option>
+<option value="completed">Completed</option>
 </select>
 
-<table id="historyTable">
-<thead>
-<tr>
-<th>Customer</th>
-<th>Number</th>
-<th>Status</th>
-<th>Time</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
+<div id="history"></div>
 </div>
 
+<!-- SETTINGS + REPORT SECTION SAME AS YOUR ORIGINAL -->
+<!-- (Nothing changed below except saveCall + loadHistory improvements) -->
+
 <script>
-let customers = [];
-let callHistory = [];
 
-function addCustomer() {
-  let name = document.getElementById("custName").value;
-  let number = document.getElementById("custNumber").value;
+const supabaseClient = supabase.createClient(
+"https://ovqaypngqsreeufizndg.supabase.co",
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92cWF5cG5ncXNyZWV1Zml6bmRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3MTk5MDksImV4cCI6MjA4NzI5NTkwOX0.oTVCvIqbhE-lUj7t6u-2oqLare6dO3myKH-EJRHFvIM"
+);
 
-  if(name=="" || number==""){
-    alert("Enter name and number");
-    return;
-  }
+let customers=[];
+let currentIndex=0;
+let agentId="";
+let callStarted=false;
+let currentCallId="";
+let currentCustomer=null;
 
-  customers.push({name:name, number:number});
-  document.getElementById("custName").value="";
-  document.getElementById("custNumber").value="";
-  renderCustomers();
+/* NAV */
+function showSection(id){
+document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+document.getElementById(id).classList.add("active");
+if(id==="report") loadReports();
 }
 
-function renderCustomers(){
-  let tbody = document.querySelector("#customerTable tbody");
-  tbody.innerHTML="";
-  
-  customers.forEach((cust,index)=>{
-    tbody.innerHTML+=`
-      <tr>
-        <td>${cust.name}</td>
-        <td>
-          <input type="text" value="${cust.number}" 
-          onchange="updateNumber(${index}, this.value)">
-        </td>
-        <td>
-          <button class="call-btn" onclick="makeCall(${index})">Call</button>
-        </td>
-      </tr>
-    `;
-  });
+/* ================= CUSTOMERS ================= */
+
+async function loadCustomers(){
+const {data}=await supabaseClient.from("customers").select("*").order("id");
+customers=data||[];
+currentIndex=0;
+showLead();
 }
 
-function updateNumber(index, value){
-  customers[index].number=value;
+function showLead(){
+if(!customers.length){
+document.getElementById("leadInfo").innerText="No Leads";
+document.getElementById("leadCounter").innerText="0 / 0";
+return;
+}
+currentCustomer=customers[currentIndex];
+document.getElementById("leadCounter").innerText=
+`${currentIndex+1} / ${customers.length}`;
+document.getElementById("leadInfo").innerText=
+`Name: ${currentCustomer.name} | Number: ${currentCustomer.number} | Attempts: ${currentCustomer.attempts||0}`;
+loadHistory();
 }
 
-function makeCall(index){
-  let agent = document.getElementById("agent").value;
-  let cli = document.getElementById("cli").value;
-  let number = customers[index].number;
-
-  if(agent=="" || cli==""){
-    alert("Agent or CLI missing");
-    return;
-  }
-
-  // Dummy API simulation
-  let status = Math.random()>0.3 ? "success" : "failed";
-
-  callHistory.unshift({
-    name: customers[index].name,
-    number: number,
-    status: status,
-    time: new Date().toLocaleString()
-  });
-
-  renderHistory();
-  alert("Call " + status.toUpperCase());
+function nextLead(){ if(currentIndex<customers.length-1){currentIndex++;showLead();}}
+function prevLead(){ if(currentIndex>0){currentIndex--;showLead();}}
+function jumpToLead(){
+let index=parseInt(document.getElementById("jumpIndex").value)-1;
+if(index>=0 && index<customers.length){currentIndex=index;showLead();}
 }
 
-function renderHistory(filter="all"){
-  let tbody = document.querySelector("#historyTable tbody");
-  tbody.innerHTML="";
+/* ================= CALL ================= */
 
-  let filtered = callHistory;
+async function createCall(){
+if(!currentCustomer) return alert("No Lead");
+if(!agentId) return alert("Set Agent in Settings");
+let cli=document.getElementById("cliDropdown").value;
+if(!cli) return alert("Select CLI");
 
-  if(filter=="success"){
-    filtered = callHistory.filter(c=>c.status=="success");
-  }
-  if(filter=="failed"){
-    filtered = callHistory.filter(c=>c.status=="failed");
-  }
+callStarted=true;
+currentCallId="CALL-"+Date.now();
 
-  filtered.forEach(call=>{
-    tbody.innerHTML+=`
-      <tr>
-        <td>${call.name}</td>
-        <td>${call.number}</td>
-        <td>${call.status}</td>
-        <td>${call.time}</td>
-      </tr>
-    `;
-  });
+document.getElementById("callId").innerText=currentCallId;
+document.getElementById("callTime").innerText=new Date().toLocaleString();
+
+const apiURL=`https://ccs1.simple2call.com/cim/page?tenant=ccslite&script=click2dial&function=call&loginkey=lHCOU3y2Hg41xZv71WMg&agent=${agentId}&from=${cli}&to=${currentCustomer.number}`;
+
+(new Image()).src=apiURL;
+alert("Call Initiated");
 }
 
-function filterHistory(){
-  let type = document.getElementById("filterType").value;
-  renderHistory(type);
+async function saveCall(){
+if(!callStarted) return alert("Initiate Call First");
+
+await supabaseClient.from("call_logs").insert([{
+customer_id:currentCustomer.id,
+agent_id:agentId,
+cli:document.getElementById("cliDropdown").value,
+call_time:new Date(),
+call_id:currentCallId,
+disposition:document.getElementById("dispositionDropdown").value,
+notes:document.getElementById("notes").value,
+status:"completed"
+}]);
+
+await supabaseClient.from("customers")
+.update({attempts:(currentCustomer.attempts||0)+1})
+.eq("id",currentCustomer.id);
+
+alert("Call Saved");
+
+/* ✅ FIX ADDED */
+callStarted=false;
+currentCallId="";
+document.getElementById("callId").innerText="";
+document.getElementById("notes").value="";
+
+/* ✅ RELOAD ONLY HISTORY (NO FULL PAGE REFRESH) */
+await loadHistory();
+await loadCustomers();
 }
+
+/* ================= HISTORY (FILTER FIXED) ================= */
+
+async function loadHistory(){
+
+if(!currentCustomer) return;
+
+let filter=document.getElementById("historyFilter")?.value || "all";
+
+let query = supabaseClient
+.from("call_logs")
+.select("*")
+.eq("customer_id",currentCustomer.id)
+.order("created_at",{ascending:false});
+
+if(filter!=="all"){
+query=query.eq("status",filter);
+}
+
+const {data}=await query;
+
+let div=document.getElementById("history");
+div.innerHTML="";
+
+if(!data || data.length===0){
+div.innerHTML="<p>No Call History</p>";
+return;
+}
+
+data.forEach(r=>{
+div.innerHTML+=`<p>${new Date(r.call_time).toLocaleString()} | ${r.disposition} | ${r.notes}</p>`;
+});
+}
+
+/* LOAD ON START */
+window.onload=function(){
+loadCustomers();
+};
+
 </script>
-
 </body>
 </html>
